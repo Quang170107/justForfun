@@ -25,7 +25,7 @@ export class Buildings {
   private nightGlows: THREE.Sprite[] = [];
   private homeWallMat!: THREE.MeshLambertMaterial;
   private beaconBeam!: THREE.Mesh;
-  private dryingSprite!: THREE.Sprite;
+  private dryingMat!: THREE.MeshBasicMaterial;
   private extraTableGroup = new THREE.Group();
   private decorGroup = new THREE.Group();
   private smokeParticles: { sprite: THREE.Sprite; originY: number; phase: number }[] = [];
@@ -98,12 +98,14 @@ export class Buildings {
     this.group.add(chimney);
 
     // Đèn lồng trước cửa nhà
-    const lantern = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_lantern'), transparent: true, alphaTest: 0.2 })
-    );
-    lantern.position.set(cx - 1.1, 1.2, cz + d / 2 + 0.2);
-    lantern.scale.set(0.65, 0.9, 1);
-    this.group.add(lantern);
+    const lantern = pixelArt.createYBillboard({
+      textureKey: 'prop_lantern',
+      widthPx: 16,
+      heightPx: 24,
+      baseYOffset: 0.4,
+    });
+    lantern.group.position.set(cx - 1.1, 0, cz + d / 2 + 0.2);
+    this.group.add(lantern.group);
     this.addNightGlow(cx - 1.1, 1.1, cz + d / 2 + 0.25, 1.8);
     this.addNightGlow(cx, 1.0, cz + d / 2 + 0.15, 1.6);
 
@@ -181,21 +183,25 @@ export class Buildings {
     this.group.add(upperRoof);
 
     // Biển hiệu "Trà Quán"
-    const sign = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: pixelArt.getTexture('sign_tra_quan'), transparent: true, alphaTest: 0.2 })
-    );
-    sign.position.set(tx, h + 0.05, tz + d / 2 + 0.56);
-    sign.scale.set(1.6, 0.8, 1);
-    this.group.add(sign);
+    const sign = pixelArt.createYBillboard({
+      textureKey: 'sign_tra_quan',
+      widthPx: 32,
+      heightPx: 16,
+      baseYOffset: h - 0.35,
+    });
+    sign.group.position.set(tx, 0, tz + d / 2 + 0.56);
+    this.group.add(sign.group);
 
     // 2 đèn lồng đỏ hai bên hiên quán
     for (const lx of [tx - 2.3, tx + 2.3]) {
-      const lan = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_lantern'), transparent: true, alphaTest: 0.2 })
-      );
-      lan.position.set(lx, 1.45, tz + d / 2 + 0.45);
-      lan.scale.set(0.7, 1.0, 1);
-      this.group.add(lan);
+      const lan = pixelArt.createYBillboard({
+        textureKey: 'prop_lantern',
+        widthPx: 16,
+        heightPx: 24,
+        baseYOffset: 0.65,
+      });
+      lan.group.position.set(lx, 0, tz + d / 2 + 0.45);
+      this.group.add(lan.group);
       this.addNightGlow(lx, 1.35, tz + d / 2 + 0.5, 2.3);
     }
 
@@ -204,12 +210,16 @@ export class Buildings {
     // Quầy pha trà trên hiên gỗ
     const cx = 5.5;
     const cz = -2.4;
-    const counter = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_tea_counter'), transparent: true, alphaTest: 0.2 })
-    );
-    counter.position.set(cx, 0.72, cz);
-    counter.scale.set(2.0, 1.4, 1);
-    this.group.add(counter);
+    const counter = pixelArt.createYBillboard({
+      textureKey: 'prop_tea_counter',
+      widthPx: 32,
+      heightPx: 24,
+      shadowScale: 1.8,
+      shadowYOffset: 0.036,
+      baseYOffset: 0.032,
+    });
+    counter.group.position.set(cx, 0, cz);
+    this.group.add(counter.group);
     island.addCollider({ minX: cx - 0.9, maxX: cx + 0.9, minZ: cz - 0.45, maxZ: cz + 0.45 });
     this.zones.push({
       id: 'brew_counter',
@@ -220,15 +230,18 @@ export class Buildings {
     });
 
     // 3 bàn trà ban đầu
-    const tableTex = pixelArt.getTexture('prop_table');
     for (let i = 0; i < 3; i++) {
       const seat = this.tableSeats[i];
-      const sp = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: tableTex, transparent: true, alphaTest: 0.2 })
-      );
-      sp.position.set(seat.x, 0.65, seat.z);
-      sp.scale.set(1.3, 1.3, 1);
-      this.group.add(sp);
+      const tbl = pixelArt.createYBillboard({
+        textureKey: 'prop_table',
+        widthPx: 24,
+        heightPx: 24,
+        shadowScale: 1.3,
+        shadowYOffset: 0.036,
+        baseYOffset: 0.032,
+      });
+      tbl.group.position.set(seat.x, 0, seat.z);
+      this.group.add(tbl.group);
       island.addCollider({ minX: seat.x - 0.55, maxX: seat.x + 0.55, minZ: seat.z - 0.45, maxZ: seat.z + 0.45 });
       this.zones.push({
         id: 'tea_table',
@@ -242,12 +255,16 @@ export class Buildings {
 
     // Bàn thứ 4 (chờ nâng cấp mở khóa)
     const seat4 = this.tableSeats[3];
-    const sp4 = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: tableTex, transparent: true, alphaTest: 0.2 })
-    );
-    sp4.position.set(seat4.x, 0.65, seat4.z);
-    sp4.scale.set(1.3, 1.3, 1);
-    this.extraTableGroup.add(sp4);
+    const tbl4 = pixelArt.createYBillboard({
+      textureKey: 'prop_table',
+      widthPx: 24,
+      heightPx: 24,
+      shadowScale: 1.3,
+      shadowYOffset: 0.036,
+      baseYOffset: 0.032,
+    });
+    tbl4.group.position.set(seat4.x, 0, seat4.z);
+    this.extraTableGroup.add(tbl4.group);
     this.zones.push({
       id: 'tea_table',
       label: 'Bàn Trà #4',
@@ -307,12 +324,17 @@ export class Buildings {
     // Nong phơi tre
     const dx = 0.2;
     const dz = -2.4;
-    this.dryingSprite = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_drying_empty'), transparent: true, alphaTest: 0.2 })
-    );
-    this.dryingSprite.position.set(dx, 0.65, dz);
-    this.dryingSprite.scale.set(1.35, 1.35, 1);
-    this.group.add(this.dryingSprite);
+    const drying = pixelArt.createYBillboard({
+      textureKey: 'prop_drying_empty',
+      widthPx: 24,
+      heightPx: 24,
+      shadowScale: 1.3,
+      shadowYOffset: 0.032,
+      baseYOffset: 0.025,
+    });
+    drying.group.position.set(dx, 0, dz);
+    this.dryingMat = drying.material;
+    this.group.add(drying.group);
     island.addCollider({ minX: dx - 0.55, maxX: dx + 0.55, minZ: dz - 0.45, maxZ: dz + 0.45 });
     this.zones.push({
       id: 'drying_rack',
@@ -325,12 +347,16 @@ export class Buildings {
     // Chảo sao trà
     const rx = 0.2;
     const rz = -0.3;
-    const wok = new THREE.Sprite(
-      new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_roast_wok'), transparent: true, alphaTest: 0.2 })
-    );
-    wok.position.set(rx, 0.65, rz);
-    wok.scale.set(1.35, 1.35, 1);
-    this.group.add(wok);
+    const wok = pixelArt.createYBillboard({
+      textureKey: 'prop_roast_wok',
+      widthPx: 24,
+      heightPx: 24,
+      shadowScale: 1.3,
+      shadowYOffset: 0.032,
+      baseYOffset: 0.025,
+    });
+    wok.group.position.set(rx, 0, rz);
+    this.group.add(wok.group);
     this.addNightGlow(rx, 0.45, rz + 0.2, 1.4);
     island.addCollider({ minX: rx - 0.55, maxX: rx + 0.55, minZ: rz - 0.45, maxZ: rz + 0.45 });
     this.zones.push({
@@ -379,23 +405,29 @@ export class Buildings {
         [2.2, 2.4],
         [8.8, 2.4],
       ]) {
-        const lan = new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_lantern'), transparent: true, alphaTest: 0.2 })
-        );
-        lan.position.set(x, 1.0, z);
-        lan.scale.set(0.65, 0.95, 1);
-        this.decorGroup.add(lan);
+        const lan = pixelArt.createYBillboard({
+          textureKey: 'prop_lantern',
+          widthPx: 16,
+          heightPx: 24,
+          shadowScale: 0.65,
+          shadowYOffset: 0.036,
+          baseYOffset: 0.032,
+        });
+        lan.group.position.set(x, 0, z);
+        this.decorGroup.add(lan.group);
         this.addNightGlow(x, 0.95, z, 1.9);
       }
     }
 
     if (upgrades.decorWindChime) {
-      const chime = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_wind_chime'), transparent: true, alphaTest: 0.2 })
-      );
-      chime.position.set(3.8, 1.75, -3.5);
-      chime.scale.set(0.65, 0.9, 1);
-      this.decorGroup.add(chime);
+      const chime = pixelArt.createYBillboard({
+        textureKey: 'prop_wind_chime',
+        widthPx: 16,
+        heightPx: 24,
+        baseYOffset: 0.9,
+      });
+      chime.group.position.set(3.8, 0, -3.5);
+      this.decorGroup.add(chime.group);
     }
 
     if (upgrades.decorPottedPlants) {
@@ -403,20 +435,23 @@ export class Buildings {
         [2.4, -2.6],
         [8.6, -2.6],
       ]) {
-        const pot = new THREE.Sprite(
-          new THREE.SpriteMaterial({ map: pixelArt.getTexture('prop_potted_plant'), transparent: true, alphaTest: 0.2 })
-        );
-        pot.position.set(x, 0.65, z);
-        pot.scale.set(0.85, 1.05, 1);
-        this.decorGroup.add(pot);
+        const pot = pixelArt.createYBillboard({
+          textureKey: 'prop_potted_plant',
+          widthPx: 16,
+          heightPx: 20,
+          shadowScale: 0.7,
+          shadowYOffset: 0.036,
+          baseYOffset: 0.032,
+        });
+        pot.group.position.set(x, 0, z);
+        this.decorGroup.add(pot.group);
       }
     }
   }
 
   public setDryingRackHasLeaves(hasLeaves: boolean): void {
-    const mat = this.dryingSprite.material as THREE.SpriteMaterial;
-    mat.map = pixelArt.getTexture(hasLeaves ? 'prop_drying_full' : 'prop_drying_empty');
-    mat.needsUpdate = true;
+    this.dryingMat.map = pixelArt.getTexture(hasLeaves ? 'prop_drying_full' : 'prop_drying_empty');
+    this.dryingMat.needsUpdate = true;
   }
 
   public getNearestZone(px: number, pz: number, extraTableUnlocked: boolean): InteractiveZone | null {

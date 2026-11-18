@@ -5,7 +5,8 @@ import { CropId, TilePlotState } from '../data/types';
 
 interface PlotVisual {
   groundMesh: THREE.Mesh;
-  cropSprite: THREE.Sprite;
+  cropGroup: THREE.Group;
+  cropMat: THREE.MeshBasicMaterial;
   puddleMesh: THREE.Mesh;
 }
 
@@ -69,16 +70,17 @@ export class Tiles {
       groundMesh.position.set(wx, 0.02, wz);
       this.group.add(groundMesh);
 
-      const cropMat = new THREE.SpriteMaterial({
-        map: pixelArt.getTexture('crop_green_tea_0'),
-        transparent: true,
-        alphaTest: 0.2,
+      const cropHandle = pixelArt.createYBillboard({
+        textureKey: 'crop_green_tea_0',
+        widthPx: 16,
+        heightPx: 24,
+        shadowScale: 0.65,
+        shadowYOffset: 0.032,
+        baseYOffset: 0.025,
       });
-      const cropSprite = new THREE.Sprite(cropMat);
-      cropSprite.position.set(wx, 0.75, wz);
-      cropSprite.scale.set(1, 1.5, 1);
-      cropSprite.visible = false;
-      this.group.add(cropSprite);
+      cropHandle.group.position.set(wx, 0, wz);
+      cropHandle.group.visible = false;
+      this.group.add(cropHandle.group);
 
       // Vũng nước nhỏ khi trời mưa
       const puddleGeo = new THREE.PlaneGeometry(0.5, 0.35);
@@ -94,7 +96,12 @@ export class Tiles {
       puddleMesh.visible = false;
       this.group.add(puddleMesh);
 
-      this.visuals.set(this.key(p.gx, p.gy), { groundMesh, cropSprite, puddleMesh });
+      this.visuals.set(this.key(p.gx, p.gy), {
+        groundMesh,
+        cropGroup: cropHandle.group,
+        cropMat: cropHandle.material,
+        puddleMesh,
+      });
       this.refreshPlotVisual(p.gx, p.gy);
     }
   }
@@ -141,7 +148,7 @@ export class Tiles {
     if (!unlocked) {
       groundMat.map = pixelArt.getTexture(`tile_grass_${(gx + gy) % 4}`);
       groundMat.needsUpdate = true;
-      v.cropSprite.visible = false;
+      v.cropGroup.visible = false;
       return;
     }
 
@@ -153,12 +160,11 @@ export class Tiles {
     groundMat.needsUpdate = true;
 
     if (p.cropId) {
-      const spriteMat = v.cropSprite.material as THREE.SpriteMaterial;
-      spriteMat.map = pixelArt.getTexture(`crop_${p.cropId}_${p.stage}`);
-      spriteMat.needsUpdate = true;
-      v.cropSprite.visible = true;
+      v.cropMat.map = pixelArt.getTexture(`crop_${p.cropId}_${p.stage}`);
+      v.cropMat.needsUpdate = true;
+      v.cropGroup.visible = true;
     } else {
-      v.cropSprite.visible = false;
+      v.cropGroup.visible = false;
     }
   }
 
@@ -170,14 +176,14 @@ export class Tiles {
         const v = this.visuals.get(k);
         if (!p || !v) continue;
 
-        if (v.cropSprite.visible) {
+        if (v.cropGroup.visible) {
           const sway = Math.sin(elapsed * 2.4 + gx * 0.7 + gy * 0.5) * 0.04;
-          v.cropSprite.position.x = FARM_ORIGIN_X + gx + 0.5 + sway;
+          v.cropGroup.position.x = FARM_ORIGIN_X + gx + 0.5 + sway;
           // Cây giai đoạn 3 nở hoa / nhấp nhô nhẹ báo hiệu thu hoạch được
           if (p.stage === 3) {
-            v.cropSprite.position.y = 0.75 + Math.abs(Math.sin(elapsed * 3 + gx)) * 0.04;
+            v.cropGroup.position.y = Math.abs(Math.sin(elapsed * 3 + gx)) * 0.04;
           } else {
-            v.cropSprite.position.y = 0.75;
+            v.cropGroup.position.y = 0;
           }
         }
 

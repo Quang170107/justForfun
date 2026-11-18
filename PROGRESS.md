@@ -1,19 +1,20 @@
 # PROGRESS — Trà Quán Trên Mây
 
 ## Giai đoạn hiện tại
-Phase 0 — Kiểm tra & ổn định khung (Xong, chờ xác nhận)
+Phase 1 — Pipeline render pixel 2.5D (Xong, chờ xác nhận)
 
 ## Lịch sử
 | Phase | Trạng thái | Ngày | Ghi chú |
 |---|---|---|---|
 | 0 | Xong | 2026-11-18 | Khởi tạo git, sửa `README.md` UTF-8, thêm Debug Overlay (`F3`) và phím debug dev (`F5`–`F9`), đối chiếu hệ thống `src/` với `GAME_BRIEF.md` và `ROADMAP.md` |
+| 1 | Xong | 2026-11-19 | Hoàn thiện Y-Billboard chuẩn 1:1 texel (`1/cos(40°)`), screen-space pixel snapping, camera lerp mượt, xoay camera 90° ~0.3s, đồng bộ hướng nhìn 4 góc, hàm tiện ích chung trong `pixelArtGenerator.ts` |
 
 ## Đánh giá hệ thống (cập nhật liên tục)
 | Hệ thống | Trạng thái | Ghi chú |
 |---|---|---|
 | Khung dự án & Build (`package.json`, `tsconfig.json`, `vite.config.ts`) | Có | Build `tsc && vite build` sạch, `.gitignore` bỏ qua `node_modules/`, `dist/`, `.vite/` |
 | Debug Overlay & Phím Debug (`F3`, `F5`–`F9`) | Có | Chỉ bật khi `import.meta.env.DEV`; hiển thị FPS, tọa độ, ô nhắm, giờ, thời tiết |
-| Render pixel 2.5D (`src/core/Game.ts`, `src/art/*`) | Một phần | Đã render qua `WebGLRenderTarget` `480×270` (`NearestFilter`), scale bội số nguyên, `OrthographicCamera`, pixel snapping, bóng đổ elip; còn thiếu lerp camera mượt, animation xoay 0.3s và helper chuẩn hóa asset ở Phase 1 |
+| Render pixel 2.5D (`src/core/Game.ts`, `src/art/*`) | Có | RenderTarget `480×270` `NearestFilter`, scale bội số nguyên khi resize, `OrthographicCamera` 40° (1 ô = 16 px), camera lerp + screen-space pixel snap, xoay 90° mượt 0.3s, Y-billboard + bóng elip, helper tạo texture/billboard dùng chung |
 | Thế giới & Tileset (`src/world/*`) | Một phần | Đã có đảo 2.5D, vách đất đá, biển mây shader, Quán trà, Nhà ở, Sạp hạt giống, Hải đăng, thông/anh đào, va chạm; chưa tách map thành dữ liệu `src/data/`, chưa có auto-tile rìa, hàng rào tự nối 4 hướng và vào/ra nội thất (Phase 2) |
 | Nhân vật & Điều khiển (`src/entities/Player.ts`, `src/core/InputSystem.ts`) | Một phần | Đã có sprite 16×32 4 hướng × 4 frame, idle 2 frame, action tool, di chuyển trượt trục X/Z; còn thiếu con trỏ ô (`tile cursor`), click chuột vào ô và lăn chuột đổi hotbar (Phase 3) |
 | Thời gian, Ngày đêm, Lưu game (`src/core/TimeSystem.ts`, `src/core/SaveSystem.ts`) | Một phần | Đã có đồng hồ 6:00–24:00 (bước 10 phút), tint màu theo giờ, quầng sáng đèn đêm, save `localStorage` có `version`; thiếu màn hình tiêu đề, fade + bảng tóm tắt cuối ngày, phạt nhẹ quá 24:00 (Phase 4) |
@@ -33,4 +34,4 @@ Phase 0 — Kiểm tra & ổn định khung (Xong, chờ xác nhận)
 - Lưu ý trong `ShopSystem.ts`: bảng giá nâng cấp (`SHOP_UPGRADES`) hiện đang đặt trong `src/systems/ShopSystem.ts`, cần chuyển sang `src/data/` ở Phase 10 theo nguyên tắc tách dữ liệu khỏi logic.
 
 ## Câu hỏi cho người dùng
-- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 0, tôi sẽ chuyển sang **Giai đoạn 1 — Pipeline render pixel 2.5D**.
+- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 1, tôi sẽ chuyển sang **Giai đoạn 2 — Thế giới & tileset**.

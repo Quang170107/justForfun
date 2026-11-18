@@ -11,7 +11,7 @@ export interface ColliderBox {
 export class Island {
   public readonly group = new THREE.Group();
   public readonly colliders: ColliderBox[] = [];
-  private swayProps: { sprite: THREE.Sprite; baseX: number; phase: number; amp: number }[] = [];
+  private swayProps: { obj: THREE.Object3D; baseX: number; phase: number; amp: number }[] = [];
 
   public readonly halfWidth = 13;
   public readonly halfDepth = 8;
@@ -77,12 +77,6 @@ export class Island {
   }
 
   private buildTreesAndDecor(): void {
-    const pineTex = pixelArt.getTexture('prop_tree_pine');
-    const sakuraTex = pixelArt.getTexture('prop_tree_sakura');
-    const bushTex = pixelArt.getTexture('prop_bush_flower');
-    const fenceTex = pixelArt.getTexture('prop_fence');
-    const shadowTex = pixelArt.getTexture('shadow_ellipse');
-
     const treePositions: { x: number; z: number; kind: 'pine' | 'sakura' }[] = [
       { x: -11.5, z: -6.2, kind: 'sakura' },
       { x: -11.8, z: -1.5, kind: 'pine' },
@@ -96,26 +90,16 @@ export class Island {
     ];
 
     for (const t of treePositions) {
-      const shGeo = new THREE.PlaneGeometry(1.8, 0.9);
-      shGeo.rotateX(-Math.PI / 2);
-      const sh = new THREE.Mesh(
-        shGeo,
-        new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, depthWrite: false })
-      );
-      sh.position.set(t.x, 0.03, t.z);
-      this.group.add(sh);
-
-      const sp = new THREE.Sprite(
-        new THREE.SpriteMaterial({
-          map: t.kind === 'pine' ? pineTex : sakuraTex,
-          transparent: true,
-          alphaTest: 0.2,
-        })
-      );
-      sp.position.set(t.x, 1.5, t.z);
-      sp.scale.set(2.1, 3.1, 1);
-      this.group.add(sp);
-      this.swayProps.push({ sprite: sp, baseX: t.x, phase: t.x + t.z, amp: 0.035 });
+      const handle = pixelArt.createYBillboard({
+        textureKey: t.kind === 'pine' ? 'prop_tree_pine' : 'prop_tree_sakura',
+        widthPx: 32,
+        heightPx: 48,
+        shadowScale: 1.75,
+        shadowYOffset: 0.032,
+      });
+      handle.group.position.set(t.x, 0, t.z);
+      this.group.add(handle.group);
+      this.swayProps.push({ obj: handle.mesh, baseX: 0, phase: t.x + t.z, amp: 0.035 });
 
       this.colliders.push({
         minX: t.x - 0.55,
@@ -135,24 +119,30 @@ export class Island {
       [11.8, 2.4],
     ];
     for (const [bx, bz] of bushes) {
-      const sp = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: bushTex, transparent: true, alphaTest: 0.2 })
-      );
-      sp.position.set(bx, 0.45, bz);
-      sp.scale.set(0.95, 0.95, 1);
-      this.group.add(sp);
-      this.swayProps.push({ sprite: sp, baseX: bx, phase: bx * 1.3, amp: 0.025 });
+      const handle = pixelArt.createYBillboard({
+        textureKey: 'prop_bush_flower',
+        widthPx: 16,
+        heightPx: 16,
+        shadowScale: 0.8,
+        shadowYOffset: 0.032,
+      });
+      handle.group.position.set(bx, 0, bz);
+      this.group.add(handle.group);
+      this.swayProps.push({ obj: handle.mesh, baseX: 0, phase: bx * 1.3, amp: 0.025 });
     }
 
     // Hàng rào gỗ ở mép Bắc đồi trà & rìa Tây
     for (let fx = -10; fx <= -3; fx++) {
-      const sp = new THREE.Sprite(
-        new THREE.SpriteMaterial({ map: fenceTex, transparent: true, alphaTest: 0.2 })
-      );
-      sp.position.set(fx + 0.5, 0.48, -0.15);
-      sp.scale.set(1, 1, 1);
       if (fx === -6 || fx === -5) continue; // Cổng mở vào đồi trà
-      this.group.add(sp);
+      const handle = pixelArt.createYBillboard({
+        textureKey: 'prop_fence',
+        widthPx: 16,
+        heightPx: 16,
+        shadowScale: 0.7,
+        shadowYOffset: 0.032,
+      });
+      handle.group.position.set(fx + 0.5, 0, -0.15);
+      this.group.add(handle.group);
       this.colliders.push({ minX: fx, maxX: fx + 1, minZ: -0.45, maxZ: 0.15 });
     }
   }
@@ -181,7 +171,7 @@ export class Island {
 
   public update(elapsed: number): void {
     for (const s of this.swayProps) {
-      s.sprite.position.x = s.baseX + Math.sin(elapsed * 1.6 + s.phase) * s.amp;
+      s.obj.position.x = s.baseX + Math.sin(elapsed * 1.6 + s.phase) * s.amp;
     }
   }
 }

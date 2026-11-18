@@ -10,7 +10,7 @@ export class Player extends BillboardSprite {
   private readonly speed = 4.2;
 
   constructor(startX: number, startZ: number) {
-    super('char_player', 1, 2, 0.85);
+    super('char_player', 16, 32, 0.85);
     this.x = startX;
     this.z = startZ;
     this.syncSnappedPosition();

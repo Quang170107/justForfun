@@ -10,7 +10,7 @@ export class CustomerEntity extends BillboardSprite {
   private bubbleSprite: THREE.Sprite;
 
   constructor(data: ActiveCustomer, seatPos: { x: number; z: number }) {
-    super(`char_${data.npcId}`, 1, 2, 0.85);
+    super(`char_${data.npcId}`, 16, 32, 0.85);
     this.data = data;
     this.targetSeat = seatPos;
     this.x = data.x;
@@ -24,7 +24,7 @@ export class CustomerEntity extends BillboardSprite {
       opacity: 0.9,
     });
     this.bubbleSprite = new THREE.Sprite(bubbleMat);
-    this.bubbleSprite.position.set(0, 2.3, 0);
+    this.bubbleSprite.position.set(0, 2.75, 0);
     this.bubbleSprite.scale.set(0.65, 0.65, 1);
     this.bubbleSprite.visible = false;
     this.group.add(this.bubbleSprite);
@@ -60,7 +60,7 @@ export class CustomerEntity extends BillboardSprite {
       this.animTimer += dt * 2;
       this.setFrame('up', 4 + (Math.floor(this.animTimer) % 2));
       this.bubbleSprite.visible = true;
-      this.bubbleSprite.position.y = 2.25 + Math.sin(elapsed * 4) * 0.08;
+      this.bubbleSprite.position.y = 2.7 + Math.sin(elapsed * 4) * 0.08;
     } else if (this.data.state === 'served') {
       this.data.waitTimer += dt;
       this.bubbleSprite.visible = false;

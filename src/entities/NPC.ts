@@ -13,7 +13,7 @@ export class NPCEntity extends BillboardSprite {
   public hiddenDuringCafe = false;
 
   constructor(def: NpcDef) {
-    super(`char_${def.id}`, 1, 2, 0.85);
+    super(`char_${def.id}`, 16, 32, 0.85);
     this.def = def;
     this.x = def.homePos.x;
     this.z = def.homePos.z;

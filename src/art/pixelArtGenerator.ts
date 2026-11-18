@@ -2,6 +2,27 @@ import * as THREE from 'three';
 import { PALETTE } from './palette';
 import { CropId, Direction, NpcId, PortraitExpression } from '../data/types';
 
+export const PIXELS_PER_UNIT = 16;
+export const CAMERA_ELEVATION_RAD = THREE.MathUtils.degToRad(40);
+export const Y_BILLBOARD_SCALE = 1 / Math.cos(CAMERA_ELEVATION_RAD);
+
+export interface YBillboardOptions {
+  textureKey?: string;
+  texture?: THREE.Texture;
+  widthPx: number;
+  heightPx: number;
+  shadowScale?: number;
+  shadowYOffset?: number;
+  baseYOffset?: number;
+  alphaTest?: number;
+}
+
+export interface YBillboardHandle {
+  group: THREE.Group;
+  mesh: THREE.Mesh;
+  material: THREE.MeshBasicMaterial;
+}
+
 export interface CharacterSheetMeta {
   texture: THREE.CanvasTexture;
   cols: number;
@@ -83,6 +104,79 @@ class PixelArtRegistry {
   getPortraitUrl(npcId: NpcId, expr: PortraitExpression): string {
     this.init();
     return this.portraitUrls.get(`${npcId}_${expr}`) ?? '';
+  }
+
+  /** Hàm tiện ích chung tạo texture pixel art chuẩn NearestFilter + tắt mipmap + bảng màu chung */
+  createPixelCanvasTexture(
+    w: number,
+    h: number,
+    drawFn: (ctx: CanvasRenderingContext2D, pixel: typeof px) => void,
+    repeatX = 1,
+    repeatY = 1
+  ): THREE.CanvasTexture {
+    const [canvas, ctx] = makeCanvas(w, h);
+    drawFn(ctx, px);
+    return makePixelTexture(canvas, repeatX, repeatY);
+  }
+
+  /** Tạo texture từ lưới ký tự pixel dùng chung bảng màu PALETTE */
+  createPixelGridTexture(rows: string[], paletteMap: Record<string, string>): THREE.CanvasTexture {
+    const h = rows.length;
+    const w = rows[0]?.length ?? 1;
+    return this.createPixelCanvasTexture(w, h, (ctx) => {
+      for (let y = 0; y < h; y++) {
+        const line = rows[y];
+        for (let x = 0; x < line.length; x++) {
+          const ch = line[x];
+          const col = paletteMap[ch];
+          if (col) {
+            px(ctx, x, y, col);
+          }
+        }
+      }
+    });
+  }
+
+  /** Tạo Y-Billboard pixel art chuẩn tỉ lệ 16px/ô, chân đặt sát mặt đất, có bóng đổ elip */
+  createYBillboard(options: YBillboardOptions): YBillboardHandle {
+    this.init();
+    const tex = options.texture ?? (options.textureKey ? this.getTexture(options.textureKey) : undefined);
+    if (!tex) {
+      throw new Error('createYBillboard requires texture or textureKey');
+    }
+
+    const widthUnits = options.widthPx / PIXELS_PER_UNIT;
+    const heightUnits = (options.heightPx / PIXELS_PER_UNIT) * Y_BILLBOARD_SCALE;
+
+    const group = new THREE.Group();
+
+    const geo = new THREE.PlaneGeometry(widthUnits, heightUnits);
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      alphaTest: options.alphaTest ?? 0.5,
+      side: THREE.DoubleSide,
+    });
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.position.y = heightUnits / 2 + (options.baseYOffset ?? 0);
+    mesh.userData.isYBillboard = true;
+    mesh.userData.isBillboardMat = true;
+    group.add(mesh);
+
+    if (options.shadowScale && options.shadowScale > 0) {
+      const shGeo = new THREE.PlaneGeometry(options.shadowScale, options.shadowScale * 0.5);
+      shGeo.rotateX(-Math.PI / 2);
+      const shMat = new THREE.MeshBasicMaterial({
+        map: this.getTexture('shadow_ellipse'),
+        transparent: true,
+        depthWrite: false,
+      });
+      const shadow = new THREE.Mesh(shGeo, shMat);
+      shadow.position.y = options.shadowYOffset ?? 0.036;
+      group.add(shadow);
+    }
+
+    return { group, mesh, material: mat };
   }
 
   private buildTiles(): void {

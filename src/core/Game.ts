@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { PALETTE } from '../art/palette';
-import { pixelArt } from '../art/pixelArtGenerator';
+import { CAMERA_ELEVATION_RAD, PIXELS_PER_UNIT, pixelArt } from '../art/pixelArtGenerator';
 import { DRYING_OUTPUT_MAP, ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import {
@@ -34,7 +34,6 @@ import { TimeSystem } from './TimeSystem';
 
 const BASE_W = 480;
 const BASE_H = 270;
-const PIXELS_PER_UNIT = 16;
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
@@ -75,6 +74,18 @@ export class Game {
   private introRead: boolean;
 
   private cameraYawStep = 0; // 0, 1, 2, 3 (90 deg steps)
+  private cameraCurrentYaw = 0;
+  private rotStartYaw = 0;
+  private rotTargetYaw = 0;
+  private rotAnimElapsed = 0.3;
+  private readonly rotAnimDuration = 0.3;
+  private camFollowX = 0;
+  private camFollowZ = 0;
+  private readonly camTargetVec = new THREE.Vector3();
+  private readonly camRightVec = new THREE.Vector3();
+  private readonly camUpVec = new THREE.Vector3();
+  private readonly billboardTint = new THREE.Color('#ffffff');
+
   private currentScale = 2;
   private lastTime = performance.now();
   private elapsed = 0;
@@ -113,6 +124,7 @@ export class Game {
       generateMipmaps: false,
       depthBuffer: true,
     });
+    this.renderTarget.texture.colorSpace = THREE.SRGBColorSpace;
 
     this.postScene = new THREE.Scene();
     this.postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
@@ -163,6 +175,8 @@ export class Game {
 
     // 4. Entities
     this.player = new Player(loaded.playerPos.x, loaded.playerPos.z);
+    this.camFollowX = this.player.x;
+    this.camFollowZ = this.player.z;
     this.scene.add(this.player.group);
 
     (Object.keys(NPCS) as NpcId[]).forEach((id) => {
@@ -310,6 +324,42 @@ export class Game {
       weather: this.weather.getWeatherLabel(),
     });
 
+    // Cập nhật xoay camera mượt (~0.3s) & lerp theo dõi người chơi
+    if (this.rotAnimElapsed < this.rotAnimDuration) {
+      this.rotAnimElapsed = Math.min(this.rotAnimDuration, this.rotAnimElapsed + dt);
+      const t = this.rotAnimElapsed / this.rotAnimDuration;
+      const ease = t * t * (3 - 2 * t);
+      this.cameraCurrentYaw = THREE.MathUtils.lerp(this.rotStartYaw, this.rotTargetYaw, ease);
+    } else {
+      this.cameraCurrentYaw = this.cameraYawStep * (Math.PI / 2);
+      this.rotTargetYaw = this.cameraCurrentYaw;
+    }
+
+    const followAlpha = 1 - Math.exp(-12 * dt);
+    this.camFollowX = THREE.MathUtils.lerp(this.camFollowX, this.player.x, followAlpha);
+    this.camFollowZ = THREE.MathUtils.lerp(this.camFollowZ, this.player.z, followAlpha);
+
+    // Đồng bộ hướng hiển thị billboard nhân vật/NPC/khách theo góc camera
+    this.player.applyCameraRelativeFrame(this.cameraYawStep);
+    for (const npc of this.npcs.values()) {
+      npc.applyCameraRelativeFrame(this.cameraYawStep);
+    }
+    for (const cust of this.customers) {
+      cust.applyCameraRelativeFrame(this.cameraYawStep);
+    }
+
+    // Xoay tất cả Y-Billboard theo camera & tint nhẹ ban đêm
+    this.billboardTint.set('#ffffff').lerp(lighting.tintColor, lighting.nightFactor * 0.55);
+    this.scene.traverse((obj) => {
+      if (obj.userData.isYBillboard) {
+        obj.rotation.y = this.cameraCurrentYaw;
+        const mesh = obj as THREE.Mesh;
+        if (mesh.material && obj.userData.isBillboardMat) {
+          (mesh.material as THREE.MeshBasicMaterial).color.copy(this.billboardTint);
+        }
+      }
+    });
+
     this.updateCameraWithPixelSnap();
     this.input.clearFrameActions();
   }
@@ -404,10 +454,10 @@ export class Game {
     if (this.ui.isModalOpen) return;
 
     if (this.input.consume('rotateLeft')) {
-      this.cameraYawStep = (this.cameraYawStep + 3) % 4;
+      this.startCameraRotation(-1);
     }
     if (this.input.consume('rotateRight')) {
-      this.cameraYawStep = (this.cameraYawStep + 1) % 4;
+      this.startCameraRotation(1);
     }
 
     for (let i = 1; i <= 9; i++) {
@@ -921,6 +971,8 @@ export class Game {
 
     this.player.x = -2;
     this.player.z = -2.2;
+    this.camFollowX = this.player.x;
+    this.camFollowZ = this.player.z;
     this.player.syncSnappedPosition();
 
     this.persistGame(false);
@@ -961,21 +1013,41 @@ export class Game {
   }
 
   // ---------------- Camera & Render ----------------
+  private startCameraRotation(deltaStep: 1 | -1): void {
+    this.cameraYawStep = (this.cameraYawStep + deltaStep + 4) % 4;
+    this.rotStartYaw = this.cameraCurrentYaw;
+    this.rotTargetYaw = this.cameraCurrentYaw + deltaStep * (Math.PI / 2);
+    this.rotAnimElapsed = 0;
+  }
+
   private updateCameraWithPixelSnap(): void {
-    // Pixel snapping tâm camera theo lưới 1/16 đơn vị để tránh rung/nhòe pixel
-    const snap = (v: number) => Math.round(v * PIXELS_PER_UNIT) / PIXELS_PER_UNIT;
-    const tx = snap(this.player.x);
-    const tz = snap(this.player.z);
-
-    const yaw = this.cameraYawStep * (Math.PI / 2);
+    const yaw = this.cameraCurrentYaw;
     const dist = 16;
-    const height = 14.5; // Góc nhìn xuống ~42°
+    const height = dist * Math.tan(CAMERA_ELEVATION_RAD); // Góc nhìn nghiêng 40°
 
-    const camX = snap(tx + Math.sin(yaw) * dist);
-    const camZ = snap(tz + Math.cos(yaw) * dist);
+    this.camTargetVec.set(this.camFollowX, 0.4, this.camFollowZ);
+    this.camera.position.set(
+      this.camFollowX + Math.sin(yaw) * dist,
+      0.4 + height,
+      this.camFollowZ + Math.cos(yaw) * dist
+    );
+    this.camera.lookAt(this.camTargetVec);
+    this.camera.updateMatrixWorld();
 
-    this.camera.position.set(camX, height, camZ);
-    this.camera.lookAt(tx, 0.4, tz);
+    // Screen-space pixel snapping: làm tròn theo lưới 1/16 đơn vị trên cả trục X & Y màn hình
+    this.camRightVec.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
+    this.camUpVec.setFromMatrixColumn(this.camera.matrixWorld, 1).normalize();
+
+    const projX = this.camTargetVec.dot(this.camRightVec);
+    const projY = this.camTargetVec.dot(this.camUpVec);
+    const snapX = Math.round(projX * PIXELS_PER_UNIT) / PIXELS_PER_UNIT;
+    const snapY = Math.round(projY * PIXELS_PER_UNIT) / PIXELS_PER_UNIT;
+    const dx = snapX - projX;
+    const dy = snapY - projY;
+
+    this.camera.position.addScaledVector(this.camRightVec, dx).addScaledVector(this.camUpVec, dy);
+    this.camTargetVec.addScaledVector(this.camRightVec, dx).addScaledVector(this.camUpVec, dy);
+    this.camera.lookAt(this.camTargetVec);
   }
 
   private render(): void {
