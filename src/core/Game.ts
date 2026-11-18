@@ -80,6 +80,11 @@ export class Game {
   private elapsed = 0;
   private isSleepingTransition = false;
 
+  private debugVisible = false;
+  private fpsFrames = 0;
+  private fpsAccum = 0;
+  private currentFps = 60;
+
   constructor(canvas: HTMLCanvasElement) {
     pixelArt.init();
 
@@ -208,6 +213,13 @@ export class Game {
     const dt = Math.min(0.05, (now - this.lastTime) / 1000);
     this.lastTime = now;
     this.elapsed += dt;
+    this.fpsFrames += 1;
+    this.fpsAccum += dt;
+    if (this.fpsAccum >= 0.25) {
+      this.currentFps = Math.round(this.fpsFrames / this.fpsAccum);
+      this.fpsFrames = 0;
+      this.fpsAccum = 0;
+    }
 
     this.update(dt);
     this.render();
@@ -288,12 +300,80 @@ export class Game {
       lighting.nightFactor
     );
     this.ui.hud.renderHotbar(this.inventory, this.selectedHotbarIndex);
+    this.ui.hud.updateDebugOverlay(this.debugVisible, {
+      fps: this.currentFps,
+      x: this.player.x,
+      z: this.player.z,
+      dir: this.player.direction,
+      tileInfo: this.getDebugTargetTileInfo(),
+      timeInfo: `Ngày ${this.time.day} - ${this.time.getFormattedTime()}`,
+      weather: this.weather.getWeatherLabel(),
+    });
 
     this.updateCameraWithPixelSnap();
     this.input.clearFrameActions();
   }
 
+  private getDebugTargetTileInfo(): string {
+    const facing = this.player.getFacingPos(0.8);
+    const { gx, gy } = this.tiles.worldToGrid(facing.x, facing.z);
+    if (!this.tiles.isPlotAccessible(gx, gy)) {
+      return `Ngoài đồi (${Math.floor(facing.x)}, ${Math.floor(facing.z)})`;
+    }
+    const p = this.tiles.getPlot(gx, gy);
+    if (!p) return `Đồi (${gx}, ${gy})`;
+    const cropTxt = p.cropId ? `${p.cropId}[GĐ${p.stage}]` : p.tilled ? 'Đất cuốc' : 'Cỏ';
+    return `Đồi (${gx}, ${gy}) • ${cropTxt}${p.watered ? ' (Ướt)' : ''}`;
+  }
+
   private handleGlobalInput(): void {
+    if (import.meta.env.DEV) {
+      if (this.input.consume('debugToggle')) {
+        this.debugVisible = !this.debugVisible;
+      }
+      if (this.input.consume('debugPlusHour')) {
+        if (this.time.timeMinutes + 60 >= 1440) {
+          this.triggerSleep(false);
+        } else {
+          this.time.advanceMinutes(60);
+          this.ui.hud.showToast(`⏩ Debug: ${this.time.getFormattedTime()}`);
+        }
+      }
+      if (this.input.consume('debugNextDay')) {
+        this.triggerSleep(false);
+      }
+      if (this.input.consume('debugAddMoney')) {
+        this.money += 1000;
+        this.audio.playCoin();
+        this.ui.hud.showToast('🪙 Debug: +1000 Xu Mây');
+      }
+      if (this.input.consume('debugCycleWeather')) {
+        const order: ('sunny' | 'rainy' | 'foggy')[] = ['sunny', 'rainy', 'foggy'];
+        const nextIdx = (order.indexOf(this.weather.currentWeather) + 1) % order.length;
+        this.weather.currentWeather = order[nextIdx];
+        if (this.weather.currentWeather === 'rainy') {
+          for (const p of this.tiles.getAllPlots()) {
+            if (p.tilled) {
+              p.watered = true;
+              this.tiles.refreshPlotVisual(p.gx, p.gy);
+            }
+          }
+        }
+        this.ui.hud.showToast(`🌦️ Debug: ${this.weather.getWeatherLabel()}`);
+      }
+      if (this.input.consume('debugGiveSeeds')) {
+        const seeds: ItemId[] = [
+          'seed_green_tea',
+          'seed_chrysanthemum',
+          'seed_mint',
+          'seed_jasmine',
+          'seed_ginger',
+        ];
+        seeds.forEach((s) => this.addItem(s, 5, 1));
+        this.audio.playHarvest();
+        this.ui.hud.showToast('🌱 Debug: +5 mỗi loại hạt giống');
+      }
+    }
     if (this.input.consume('escape')) {
       if (this.ui.dialogue.isOpen) {
         this.ui.dialogue.close();

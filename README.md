@@ -27,6 +27,16 @@ npm run build
 | `Tab` / `I` | Mở Túi đồ & Sổ Công Thức |
 | `Esc` | Mở Menu / Đóng cửa sổ |
 
+## Phím Debug (chỉ hoạt động ở chế độ dev)
+| Phím | Chức năng |
+|---|---|
+| `F3` | Bật/tắt Debug Overlay (FPS, tọa độ, ô đang nhắm, giờ) |
+| `F5` | Tua nhanh +1 giờ |
+| `F6` | Qua ngày mới ngay |
+| `F7` | Cộng +1000 Xu Mây |
+| `F8` | Đổi vòng thời tiết (Nắng / Mưa / Sương mù) |
+| `F9` | Thêm +5 mỗi loại hạt giống vào túi |
+
 ## Cấu trúc thư mục
 - `src/art/`: Bảng màu và bộ tạo pixel art (`CanvasTexture` + icon/portrait DataURL)
 - `src/core/`: Vòng lặp render 2.5D, hệ thống thời gian, điều khiển, lưu game (`localStorage`), âm thanh Web Audio API

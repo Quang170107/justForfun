@@ -12,7 +12,13 @@ export type GameActionKey =
   | 'hotbar6'
   | 'hotbar7'
   | 'hotbar8'
-  | 'hotbar9';
+  | 'hotbar9'
+  | 'debugToggle'
+  | 'debugPlusHour'
+  | 'debugNextDay'
+  | 'debugAddMoney'
+  | 'debugCycleWeather'
+  | 'debugGiveSeeds';
 
 export class InputSystem {
   private held = new Set<string>();
@@ -33,6 +39,9 @@ export class InputSystem {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab'].includes(code)) {
       e.preventDefault();
     }
+    if (import.meta.env.DEV && ['F3', 'F5', 'F6', 'F7', 'F8', 'F9'].includes(code)) {
+      e.preventDefault();
+    }
 
     if (!e.repeat) {
       if (code === 'KeyE' || code === 'Space') this.justPressed.add('interact');
@@ -43,6 +52,14 @@ export class InputSystem {
       if (code >= 'Digit1' && code <= 'Digit9') {
         const idx = Number(code.replace('Digit', ''));
         this.justPressed.add(`hotbar${idx}` as GameActionKey);
+      }
+      if (import.meta.env.DEV) {
+        if (code === 'F3') this.justPressed.add('debugToggle');
+        if (code === 'F5') this.justPressed.add('debugPlusHour');
+        if (code === 'F6') this.justPressed.add('debugNextDay');
+        if (code === 'F7') this.justPressed.add('debugAddMoney');
+        if (code === 'F8') this.justPressed.add('debugCycleWeather');
+        if (code === 'F9') this.justPressed.add('debugGiveSeeds');
       }
     }
 

@@ -172,6 +172,15 @@ body {
   animation: pulseBob 1.1s infinite alternate;
 }
 
+#debug-overlay {
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 12px;
+  min-width: 245px;
+  background: rgba(251, 240, 217, 0.94);
+  pointer-events: none;
+}
+
 @keyframes pulseBob {
   from {
     transform: translateY(0);

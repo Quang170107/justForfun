@@ -16,6 +16,7 @@ export class HUD {
   private dialHandEl = document.getElementById('dial-hand')!;
   private dialBgEl = document.getElementById('sun-moon-dial')!;
   private promptPillEl = document.getElementById('prompt-pill')!;
+  private debugOverlayEl = document.getElementById('debug-overlay')!;
   private hotbarSlotsEl = document.getElementById('hotbar-slots')!;
   private toastContainerEl = document.getElementById('toast-container')!;
   private daylightTintEl = document.getElementById('daylight-tint')!;
@@ -71,6 +72,32 @@ export class HUD {
     } else {
       this.promptPillEl.classList.add('hidden');
     }
+  }
+
+  public updateDebugOverlay(
+    visible: boolean,
+    info: {
+      fps: number;
+      x: number;
+      z: number;
+      dir: string;
+      tileInfo: string;
+      timeInfo: string;
+      weather: string;
+    }
+  ): void {
+    if (!visible) {
+      this.debugOverlayEl.classList.add('hidden');
+      return;
+    }
+    this.debugOverlayEl.classList.remove('hidden');
+    this.debugOverlayEl.innerHTML = `
+      <div><b>[DEBUG F3]</b> FPS: <b>${info.fps}</b></div>
+      <div>Vị trí: X=${info.x.toFixed(2)}, Z=${info.z.toFixed(2)} (${info.dir})</div>
+      <div>Ô nhắm: ${info.tileInfo}</div>
+      <div>Giờ: ${info.timeInfo} | ${info.weather}</div>
+      <div style="font-size:11px;color:#6b3e26;margin-top:3px;">F5:+1h • F6:Qua ngày • F7:+1000Xu • F8:Thời tiết • F9:Hạt giống</div>
+    `;
   }
 
   public renderHotbar(inventory: (InventorySlot | null)[], selectedIdx: number): void {
