@@ -1,0 +1,140 @@
+import { pixelArt } from '../art/pixelArtGenerator';
+import { ITEMS } from '../data/crops';
+import { InventorySlot, WeatherType } from '../data/types';
+
+export interface TooltipCallbacks {
+  show: (slot: InventorySlot, x: number, y: number) => void;
+  hide: () => void;
+}
+
+export class HUD {
+  private dayEl = document.getElementById('hud-day')!;
+  private timeEl = document.getElementById('hud-time')!;
+  private weatherEl = document.getElementById('hud-weather')!;
+  private cafeStatusEl = document.getElementById('hud-cafe-status')!;
+  private moneyEl = document.getElementById('hud-money')!;
+  private dialHandEl = document.getElementById('dial-hand')!;
+  private dialBgEl = document.getElementById('sun-moon-dial')!;
+  private promptPillEl = document.getElementById('prompt-pill')!;
+  private hotbarSlotsEl = document.getElementById('hotbar-slots')!;
+  private toastContainerEl = document.getElementById('toast-container')!;
+  private daylightTintEl = document.getElementById('daylight-tint')!;
+
+  private lastRenderedKey = '';
+
+  constructor(
+    private onSelectHotbar: (idx: number) => void,
+    private tooltip: TooltipCallbacks,
+    onOpenInv: () => void,
+    onOpenMenu: () => void
+  ) {
+    document.getElementById('btn-open-inv')!.addEventListener('click', onOpenInv);
+    document.getElementById('btn-open-menu')!.addEventListener('click', onOpenMenu);
+  }
+
+  public updateClockAndMeta(
+    day: number,
+    season: string,
+    formattedTime: string,
+    progress: number,
+    weather: WeatherType,
+    isOpen: boolean,
+    money: number,
+    tintHex: string,
+    nightFactor: number
+  ): void {
+    this.dayEl.textContent = `${season} • Ngày ${day}`;
+    this.timeEl.textContent = formattedTime;
+    this.moneyEl.textContent = String(money);
+
+    const weatherIcon = weather === 'sunny' ? '☀️ Nắng ấm' : weather === 'rainy' ? '🌧️ Mưa nhẹ' : '🌫️ Sương mù';
+    this.weatherEl.textContent = weatherIcon;
+    this.cafeStatusEl.textContent = isOpen ? '🍵 Quán đang mở!' : '☕ 14:00 mở quán';
+    this.cafeStatusEl.style.color = isOpen ? '#3f7d3a' : '#6b3e26';
+
+    // Quay mặt trời / mặt trăng theo tiến độ ngày
+    const arcX = Math.cos(Math.PI * (1 - progress)) * 11;
+    const arcY = -Math.sin(Math.PI * (1 - progress)) * 8;
+    this.dialHandEl.textContent = progress > 0.72 ? '🌙' : '☀️';
+    this.dialHandEl.style.transform = `translate(${arcX.toFixed(1)}px, ${arcY.toFixed(1)}px)`;
+    this.dialBgEl.style.background = progress > 0.72 ? '#313d5a' : progress > 0.55 ? '#ee9389' : '#8fa8e0';
+
+    // Phủ lớp tint ngày đêm toàn màn hình kiểu Stardew
+    this.daylightTintEl.style.backgroundColor = `#${tintHex}`;
+    this.daylightTintEl.style.opacity = String(0.18 + nightFactor * 0.48);
+  }
+
+  public setPrompt(text: string | null): void {
+    if (text) {
+      this.promptPillEl.textContent = `[E] ${text}`;
+      this.promptPillEl.classList.remove('hidden');
+    } else {
+      this.promptPillEl.classList.add('hidden');
+    }
+  }
+
+  public renderHotbar(inventory: (InventorySlot | null)[], selectedIdx: number): void {
+    const key =
+      selectedIdx +
+      '|' +
+      inventory
+        .slice(0, 9)
+        .map((s) => (s ? `${s.itemId}:${s.count}:${s.quality}` : '-'))
+        .join(',');
+    if (key === this.lastRenderedKey) return;
+    this.lastRenderedKey = key;
+
+    this.hotbarSlotsEl.innerHTML = '';
+    for (let i = 0; i < 9; i++) {
+      const slot = inventory[i];
+      const div = document.createElement('div');
+      div.className = `inv-slot ${i === selectedIdx ? 'active' : ''}`;
+
+      const keyLabel = document.createElement('span');
+      keyLabel.className = 'slot-key';
+      keyLabel.textContent = String(i + 1);
+      div.appendChild(keyLabel);
+
+      if (slot) {
+        const def = ITEMS[slot.itemId];
+        const img = document.createElement('img');
+        img.src = pixelArt.getIconUrl(def.iconKey);
+        img.alt = def.name;
+        div.appendChild(img);
+
+        if (def.stackable && slot.count > 1) {
+          const cnt = document.createElement('span');
+          cnt.className = 'slot-count';
+          cnt.textContent = String(slot.count);
+          div.appendChild(cnt);
+        }
+
+        if (def.category !== 'tool' && def.category !== 'seed' && slot.quality > 1) {
+          const st = document.createElement('span');
+          st.className = 'slot-star';
+          st.textContent = '★'.repeat(slot.quality);
+          div.appendChild(st);
+        }
+
+        div.addEventListener('mouseenter', (e) => this.tooltip.show(slot, e.clientX, e.clientY));
+        div.addEventListener('mousemove', (e) => this.tooltip.show(slot, e.clientX, e.clientY));
+        div.addEventListener('mouseleave', () => this.tooltip.hide());
+      }
+
+      div.addEventListener('click', () => {
+        this.onSelectHotbar(i);
+      });
+      this.hotbarSlotsEl.appendChild(div);
+    }
+  }
+
+  public showToast(msg: string): void {
+    const div = document.createElement('div');
+    div.className = 'toast-msg';
+    div.textContent = msg;
+    this.toastContainerEl.appendChild(div);
+    setTimeout(() => {
+      div.remove();
+    }, 2600);
+  }
+}

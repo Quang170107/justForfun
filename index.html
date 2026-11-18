@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🍵 Trà Quán Trên Mây</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=VT323&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="game-shell">
+      <div id="viewport-wrapper">
+        <canvas id="game-canvas"></canvas>
+        <div id="daylight-tint"></div>
+      </div>
+
+      <!-- HUD -->
+      <div id="hud-layer">
+        <div id="top-left-bar">
+          <div class="stardew-pill" id="location-pill">🏝️ Đảo Trà Trên Mây</div>
+          <div class="stardew-pill hidden" id="prompt-pill">[E] Tương tác</div>
+        </div>
+
+        <div id="clock-panel" class="stardew-panel">
+          <div class="clock-dial-row">
+            <div id="sun-moon-dial">
+              <div id="dial-arc"></div>
+              <div id="dial-hand">☀️</div>
+            </div>
+            <div class="clock-info">
+              <div id="hud-day">Xuân • Ngày 1</div>
+              <div id="hud-time">06:00</div>
+            </div>
+          </div>
+          <div class="clock-meta-row">
+            <span id="hud-weather">☀️ Nắng ấm</span>
+            <span id="hud-cafe-status">☕ 14:00 mở quán</span>
+          </div>
+          <div class="money-row">
+            <span>🪙 Xu Mây:</span>
+            <strong id="hud-money">150</strong>
+          </div>
+          <div class="hud-quick-btns">
+            <button id="btn-open-inv" class="pixel-btn small" title="Túi đồ & Sổ (Tab / I)">🎒 Túi (Tab)</button>
+            <button id="btn-open-menu" class="pixel-btn small" title="Menu (Esc)">⚙️ Menu</button>
+          </div>
+        </div>
+
+        <!-- Floating notifications & coin popups -->
+        <div id="toast-container"></div>
+
+        <!-- Hotbar -->
+        <div id="hotbar-wrap" class="stardew-panel">
+          <div id="hotbar-slots"></div>
+          <div class="controls-hint">WASD: Đi • E/Space: Dùng / Nói chuyện • 1-9: Chọn ô • Q/R: Xoay góc • Tab: Túi</div>
+        </div>
+      </div>
+
+      <!-- Tooltip -->
+      <div id="item-tooltip" class="stardew-panel hidden">
+        <div id="tooltip-title"></div>
+        <div id="tooltip-quality"></div>
+        <div id="tooltip-desc"></div>
+      </div>
+
+      <!-- Dialogue Box -->
+      <div id="dialogue-overlay" class="hidden">
+        <div id="dialogue-box" class="stardew-panel">
+          <div id="dialogue-speaker-tag" class="stardew-wood-tag"></div>
+          <div class="dialogue-body">
+            <div class="portrait-frame">
+              <img id="dialogue-portrait" alt="Chân dung NPC" />
+              <div id="dialogue-hearts"></div>
+            </div>
+            <div class="dialogue-text-wrap">
+              <p id="dialogue-text"></p>
+              <div class="dialogue-actions">
+                <button id="dialogue-gift-btn" class="pixel-btn small hidden">🍵 Tặng món đang cầm</button>
+                <span class="dialogue-next-hint">[E / Click] Tiếp tục ▼</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Modal Layer -->
+      <div id="modal-overlay" class="hidden">
+        <div id="modal-box" class="stardew-panel"></div>
+      </div>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
