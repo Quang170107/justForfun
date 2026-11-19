@@ -293,9 +293,9 @@ export class Game {
 
     const fogStrength = this.weather.currentWeather === 'foggy' ? 1 : 0;
     this.cloudSea.update(this.elapsed, dt, fogStrength);
-    this.island.update(this.elapsed);
+    this.island.update(this.elapsed, lighting.nightFactor);
     this.tiles.updateWindAndRain(this.elapsed, this.weather.currentWeather === 'rainy');
-    this.buildings.update(this.elapsed, lighting.nightFactor);
+    this.buildings.update(this.elapsed, lighting.nightFactor, this.player.x, this.player.z);
     this.weather.update(dt, this.elapsed, lighting.nightFactor);
 
     for (const npc of this.npcs.values()) {
@@ -313,6 +313,7 @@ export class Game {
       lighting.tintColor.getHexString(),
       lighting.nightFactor
     );
+    this.ui.hud.setLocation(this.buildings.getLocationLabel(this.player.x, this.player.z));
     this.ui.hud.renderHotbar(this.inventory, this.selectedHotbarIndex);
     this.ui.hud.updateDebugOverlay(this.debugVisible, {
       fps: this.currentFps,

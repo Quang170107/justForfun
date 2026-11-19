@@ -20,41 +20,11 @@ export class Tiles {
   constructor(initialPlots: TilePlotState[], expandedUnlocked: boolean) {
     this.expandedUnlocked = expandedUnlocked;
     this.tileGeo.rotateX(-Math.PI / 2);
-
-    this.buildStaticPaths();
     this.initFarmPlots(initialPlots);
   }
 
   private key(gx: number, gy: number): string {
     return `${gx},${gy}`;
-  }
-
-  private buildStaticPaths(): void {
-    // Lối đi đá từ Nhà ở (-2, -3) tới Đồi trà, Sạp Bé Sương (-8.5, -3), Quán trà (5.5, -2.5), Hải đăng (10, 4.5)
-    const stoneCoords: [number, number][] = [];
-    for (let x = -9; x <= 9; x++) stoneCoords.push([x, -2]);
-    for (let z = -3; z <= 4; z++) stoneCoords.push([1, z]);
-    for (let x = 2; x <= 10; x++) stoneCoords.push([x, 4]);
-    stoneCoords.push([-2, -3], [-8, -3], [-9, -3], [5, -3], [6, -3]);
-
-    const stoneTex = pixelArt.getTexture('tile_stone_path');
-    for (const [x, z] of stoneCoords) {
-      const mat = new THREE.MeshLambertMaterial({ map: stoneTex });
-      const m = new THREE.Mesh(this.tileGeo, mat);
-      m.position.set(x + 0.5, 0.015, z + 0.5);
-      this.group.add(m);
-    }
-
-    // Sàn gỗ hiên Quán trà (x = 2..9, z = -2..2)
-    const woodTex = pixelArt.getTexture('tile_wood_floor');
-    for (let x = 2; x <= 9; x++) {
-      for (let z = -3; z <= 2; z++) {
-        const mat = new THREE.MeshLambertMaterial({ map: woodTex });
-        const m = new THREE.Mesh(this.tileGeo, mat);
-        m.position.set(x + 0.5, 0.03, z + 0.5);
-        this.group.add(m);
-      }
-    }
   }
 
   private initFarmPlots(plots: TilePlotState[]): void {
@@ -102,7 +72,10 @@ export class Tiles {
         cropMat: cropHandle.material,
         puddleMesh,
       });
-      this.refreshPlotVisual(p.gx, p.gy);
+    }
+
+    for (const p of plots) {
+      this.refreshPlotSingle(p.gx, p.gy);
     }
   }
 
@@ -110,7 +83,7 @@ export class Tiles {
     this.expandedUnlocked = val;
     for (let gy = 0; gy < FARM_ROWS; gy++) {
       for (let gx = 0; gx < FARM_MAX_COLS; gx++) {
-        this.refreshPlotVisual(gx, gy);
+        this.refreshPlotSingle(gx, gy);
       }
     }
   }
@@ -136,7 +109,20 @@ export class Tiles {
     return Array.from(this.plotMap.values());
   }
 
-  public refreshPlotVisual(gx: number, gy: number): void {
+  private getSoilMask(gx: number, gy: number): number {
+    const isTilled = (nx: number, ny: number) => {
+      if (!this.isPlotAccessible(nx, ny)) return false;
+      return Boolean(this.getPlot(nx, ny)?.tilled);
+    };
+    let mask = 0;
+    if (isTilled(gx, gy - 1)) mask |= 1; // North
+    if (isTilled(gx + 1, gy)) mask |= 2; // East
+    if (isTilled(gx, gy + 1)) mask |= 4; // South
+    if (isTilled(gx - 1, gy)) mask |= 8; // West
+    return mask;
+  }
+
+  private refreshPlotSingle(gx: number, gy: number): void {
     const k = this.key(gx, gy);
     const p = this.plotMap.get(k);
     const v = this.visuals.get(k);
@@ -153,7 +139,8 @@ export class Tiles {
     }
 
     if (p.tilled) {
-      groundMat.map = pixelArt.getTexture(p.watered ? 'tile_soil_watered' : 'tile_soil_tilled');
+      const mask = this.getSoilMask(gx, gy);
+      groundMat.map = pixelArt.getAutoTileTexture(p.watered ? 'soil_watered' : 'soil_tilled', mask);
     } else {
       groundMat.map = pixelArt.getTexture(`tile_grass_${(gx + gy) % 3}`);
     }
@@ -168,6 +155,14 @@ export class Tiles {
     }
   }
 
+  public refreshPlotVisual(gx: number, gy: number): void {
+    this.refreshPlotSingle(gx, gy);
+    this.refreshPlotSingle(gx, gy - 1);
+    this.refreshPlotSingle(gx + 1, gy);
+    this.refreshPlotSingle(gx, gy + 1);
+    this.refreshPlotSingle(gx - 1, gy);
+  }
+
   public updateWindAndRain(elapsed: number, isRaining: boolean): void {
     for (let gy = 0; gy < FARM_ROWS; gy++) {
       for (let gx = 0; gx < FARM_MAX_COLS; gx++) {
@@ -179,7 +174,6 @@ export class Tiles {
         if (v.cropGroup.visible) {
           const sway = Math.sin(elapsed * 2.4 + gx * 0.7 + gy * 0.5) * 0.04;
           v.cropGroup.position.x = FARM_ORIGIN_X + gx + 0.5 + sway;
-          // Cây giai đoạn 3 nở hoa / nhấp nhô nhẹ báo hiệu thu hoạch được
           if (p.stage === 3) {
             v.cropGroup.position.y = Math.abs(Math.sin(elapsed * 3 + gx)) * 0.04;
           } else {

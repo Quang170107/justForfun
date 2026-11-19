@@ -75,9 +75,9 @@ export class CloudSea {
     this.fogVeilMesh.position.y = -0.35;
     this.group.add(this.fogVeilMesh);
 
-    // Các cụm mây pixel trôi ở tiền cảnh và hậu cảnh
+    // Các cụm mây pixel trôi bao quanh cả 4 phía (tiền cảnh & hậu cảnh)
     const tuftTex = pixelArt.getTexture('cloud_tuft');
-    for (let i = 0; i < 26; i++) {
+    for (let i = 0; i < 40; i++) {
       const mat = new THREE.SpriteMaterial({
         map: tuftTex,
         transparent: true,
@@ -85,19 +85,41 @@ export class CloudSea {
         depthWrite: false,
       });
       const sprite = new THREE.Sprite(mat);
-      const isForeground = i < 8;
-      const baseX = -32 + (i * 5.7) % 64;
-      const baseZ = isForeground ? 9.5 + (i % 4) * 3.2 : -11.5 - (i % 5) * 3.5;
-      const baseY = isForeground ? -0.9 - (i % 3) * 0.45 : -2.1 - (i % 3) * 0.35;
+      const ring = i % 4;
+      let baseX = 0;
+      let baseZ = 0;
+      let baseY = -1.6;
+      if (ring === 0) {
+        // Phía Nam (tiền cảnh)
+        baseX = -30 + ((i * 6.3) % 60);
+        baseZ = 9.5 + (i % 4) * 3.0;
+        baseY = -0.85 - (i % 3) * 0.45;
+      } else if (ring === 1) {
+        // Phía Bắc (hậu cảnh)
+        baseX = -30 + ((i * 5.9) % 60);
+        baseZ = -10.5 - (i % 4) * 3.2;
+        baseY = -1.8 - (i % 3) * 0.4;
+      } else if (ring === 2) {
+        // Phía Tây
+        baseX = -16.5 - (i % 4) * 3.4;
+        baseZ = -12 + ((i * 4.7) % 24);
+        baseY = -1.3 - (i % 3) * 0.45;
+      } else {
+        // Phía Đông
+        baseX = 16.5 + (i % 4) * 3.4;
+        baseZ = -12 + ((i * 5.1) % 24);
+        baseY = -1.3 - (i % 3) * 0.45;
+      }
+
       sprite.position.set(baseX, baseY, baseZ);
-      const scale = isForeground ? 3.8 : 5.2;
+      const scale = ring === 0 ? 3.8 : 5.0;
       sprite.scale.set(scale, scale * 0.5, 1);
       this.group.add(sprite);
       this.tufts.push({
         sprite,
         baseX,
         baseY,
-        speed: 0.4 + (i % 5) * 0.16,
+        speed: 0.35 + (i % 5) * 0.14,
         amp: 0.12 + (i % 3) * 0.05,
       });
     }

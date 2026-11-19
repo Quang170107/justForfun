@@ -53,12 +53,12 @@ export const NPCS: Record<NpcId, NpcDef> = {
     name: 'Ông Đăng',
     role: 'Người gác hải đăng mây kỳ cựu',
     favoriteTea: 'cup_ginger_warm',
-    homePos: { x: 11.2, z: 5.5 },
+    homePos: { x: 9.2, z: 5.2 },
     patrolPoints: [
-      { x: 11.2, z: 5.5 },
-      { x: 9.5, z: 5.8 },
-      { x: 11.8, z: 3.6 },
-      { x: 8.5, z: 4.5 },
+      { x: 9.2, z: 5.2 },
+      { x: 8.4, z: 5.5 },
+      { x: 9.5, z: 3.8 },
+      { x: 7.4, z: 4.5 },
     ],
     dailyLines: [
       'Hừm! Đèn hải đăng tối nào cũng phải sáng, kẻo mấy con tàu mây lạc bến.',

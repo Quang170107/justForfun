@@ -15,6 +15,7 @@ export class HUD {
   private moneyEl = document.getElementById('hud-money')!;
   private dialHandEl = document.getElementById('dial-hand')!;
   private dialBgEl = document.getElementById('sun-moon-dial')!;
+  private locationPillEl = document.getElementById('location-pill')!;
   private promptPillEl = document.getElementById('prompt-pill')!;
   private debugOverlayEl = document.getElementById('debug-overlay')!;
   private hotbarSlotsEl = document.getElementById('hotbar-slots')!;
@@ -63,6 +64,12 @@ export class HUD {
     // Phủ lớp tint ngày đêm toàn màn hình kiểu Stardew
     this.daylightTintEl.style.backgroundColor = `#${tintHex}`;
     this.daylightTintEl.style.opacity = String(0.18 + nightFactor * 0.48);
+  }
+
+  public setLocation(label: string): void {
+    if (this.locationPillEl.textContent !== label) {
+      this.locationPillEl.textContent = label;
+    }
   }
 
   public setPrompt(text: string | null): void {

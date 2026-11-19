@@ -6,6 +6,8 @@ export const PIXELS_PER_UNIT = 16;
 export const CAMERA_ELEVATION_RAD = THREE.MathUtils.degToRad(40);
 export const Y_BILLBOARD_SCALE = 1 / Math.cos(CAMERA_ELEVATION_RAD);
 
+export type AutoTileKind = 'stone_path' | 'wood_floor' | 'soil_tilled' | 'soil_watered';
+
 export interface YBillboardOptions {
   textureKey?: string;
   texture?: THREE.Texture;
@@ -104,6 +106,101 @@ class PixelArtRegistry {
   getPortraitUrl(npcId: NpcId, expr: PortraitExpression): string {
     this.init();
     return this.portraitUrls.get(`${npcId}_${expr}`) ?? '';
+  }
+
+  /**
+   * Auto-tile 4 hướng (bitmask: N=1, E=2, S=4, W=8) cho chuyển tiếp cỏ <-> đất <-> đá <-> sàn gỗ.
+   */
+  getAutoTileTexture(kind: AutoTileKind, mask: number): THREE.CanvasTexture {
+    this.init();
+    const safeMask = mask & 15;
+    const key = `autotile_${kind}_${safeMask}`;
+    const existing = this.textures.get(key);
+    if (existing) return existing;
+
+    const hasN = (safeMask & 1) !== 0;
+    const hasE = (safeMask & 2) !== 0;
+    const hasS = (safeMask & 4) !== 0;
+    const hasW = (safeMask & 8) !== 0;
+
+    const tex = this.createPixelCanvasTexture(16, 16, (ctx, p) => {
+      if (kind === 'stone_path') {
+        p(ctx, 0, 0, PALETTE.grassMid, 16, 16);
+        const stones = [
+          [1, 1, 6, 5],
+          [8, 2, 7, 5],
+          [2, 8, 7, 6],
+          [10, 9, 5, 5],
+        ];
+        for (const [x, y, w, h] of stones) {
+          p(ctx, x, y, PALETTE.outlinePlum, w, h);
+          p(ctx, x + 1, y + 1, PALETTE.rockMid, w - 2, h - 2);
+          p(ctx, x + 1, y + 1, PALETTE.rockLight, w - 3, 1);
+          p(ctx, x + 1, y + h - 2, PALETTE.rockDark, w - 2, 1);
+        }
+        // Rìa cỏ chuyển tiếp ở những cạnh tiếp giáp cỏ
+        if (!hasN) {
+          p(ctx, 0, 0, PALETTE.grassMid, 16, 2);
+          p(ctx, 2, 2, PALETTE.grassLight, 3, 1);
+          p(ctx, 10, 2, PALETTE.grassDark, 3, 1);
+        }
+        if (!hasS) {
+          p(ctx, 0, 14, PALETTE.grassDark, 16, 2);
+          p(ctx, 4, 13, PALETTE.grassMid, 4, 1);
+        }
+        if (!hasW) {
+          p(ctx, 0, 0, PALETTE.grassMid, 2, 16);
+          p(ctx, 2, 6, PALETTE.grassLight, 1, 3);
+        }
+        if (!hasE) {
+          p(ctx, 14, 0, PALETTE.grassDark, 2, 16);
+          p(ctx, 13, 4, PALETTE.grassMid, 1, 4);
+        }
+      } else if (kind === 'wood_floor') {
+        p(ctx, 0, 0, PALETTE.woodMid, 16, 16);
+        for (let y = 0; y < 16; y += 4) {
+          p(ctx, 0, y, PALETTE.woodBright, 16, 1);
+          p(ctx, 0, y + 3, PALETTE.woodDark, 16, 1);
+          const splitX = y % 8 === 0 ? 7 : 12;
+          p(ctx, splitX, y, PALETTE.outlineDark, 1, 4);
+        }
+        if (!hasN) p(ctx, 0, 0, PALETTE.outlineDark, 16, 1);
+        if (!hasS) {
+          p(ctx, 0, 14, PALETTE.woodDark, 16, 1);
+          p(ctx, 0, 15, PALETTE.outlineDark, 16, 1);
+        }
+        if (!hasW) p(ctx, 0, 0, PALETTE.outlineDark, 1, 16);
+        if (!hasE) p(ctx, 15, 0, PALETTE.outlineDark, 1, 16);
+      } else {
+        const wet = kind === 'soil_watered';
+        p(ctx, 0, 0, PALETTE.grassDark, 16, 16);
+        const top = hasN ? 0 : 1;
+        const left = hasW ? 0 : 1;
+        const bot = hasS ? 16 : 15;
+        const right = hasE ? 16 : 15;
+        p(ctx, left, top, PALETTE.outlineDark, right - left, bot - top);
+
+        const itop = hasN ? 0 : 2;
+        const ileft = hasW ? 0 : 2;
+        const ibot = hasS ? 16 : 14;
+        const iright = hasE ? 16 : 14;
+        p(ctx, ileft, itop, wet ? PALETTE.soilWet : PALETTE.soilMid, iright - ileft, ibot - itop);
+
+        for (let row = 3; row <= 12; row += 3) {
+          if (row >= itop && row + 1 < ibot) {
+            p(ctx, ileft, row, wet ? PALETTE.soilDark : PALETTE.soilLight, iright - ileft, 1);
+            p(ctx, ileft, row + 1, wet ? PALETTE.shadowSoil : PALETTE.soilDark, iright - ileft, 1);
+          }
+        }
+        if (wet) {
+          p(ctx, 5, 5, PALETTE.waterBlue, 1, 1);
+          p(ctx, 11, 10, PALETTE.waterBlue, 1, 1);
+        }
+      }
+    });
+
+    this.textures.set(key, tex);
+    return tex;
   }
 
   /** Hàm tiện ích chung tạo texture pixel art chuẩn NearestFilter + tắt mipmap + bảng màu chung */
@@ -282,30 +379,42 @@ class PixelArtRegistry {
       this.textures.set('tile_wood_floor', makePixelTexture(c));
     }
 
-    // Island cliff side (16x16 tileable)
+    // Island cliff side (16x32 tileable, layered earth & stone strata)
+    {
+      const [c, ctx] = makeCanvas(16, 32);
+      // Grass cap overhanging
+      px(ctx, 0, 0, PALETTE.grassMid, 16, 5);
+      px(ctx, 0, 0, PALETTE.grassBright, 16, 2);
+      px(ctx, 2, 5, PALETTE.grassDark, 4, 2);
+      px(ctx, 9, 5, PALETTE.grassDark, 5, 2);
+      // Soil strata
+      px(ctx, 0, 6, PALETTE.soilMid, 16, 8);
+      px(ctx, 0, 6, PALETTE.outlineDark, 16, 1);
+      px(ctx, 2, 8, PALETTE.soilLight, 5, 2);
+      px(ctx, 10, 10, PALETTE.soilDark, 5, 3);
+      // Deep rock base
+      px(ctx, 0, 14, PALETTE.rockMid, 16, 18);
+      px(ctx, 0, 14, PALETTE.soilDark, 16, 1);
+      px(ctx, 1, 17, PALETTE.rockLight, 6, 4);
+      px(ctx, 9, 18, PALETTE.rockDark, 6, 5);
+      px(ctx, 3, 24, PALETTE.rockDark, 7, 4);
+      px(ctx, 11, 25, PALETTE.rockLight, 4, 3);
+      px(ctx, 0, 30, PALETTE.outlinePlum, 16, 2);
+      // Embedded root & moss
+      px(ctx, 6, 5, PALETTE.grassDark, 2, 6);
+      px(ctx, 7, 11, PALETTE.woodDark, 1, 5);
+      this.textures.set('tile_cliff', makePixelTexture(c));
+    }
+
+    // Timber fence rail texture for 4-way auto-connected 3D fences
     {
       const [c, ctx] = makeCanvas(16, 16);
-      // Grass cap overhanging
-      px(ctx, 0, 0, PALETTE.grassMid, 16, 3);
-      px(ctx, 0, 0, PALETTE.grassBright, 16, 1);
-      px(ctx, 2, 3, PALETTE.grassDark, 3, 2);
-      px(ctx, 9, 3, PALETTE.grassDark, 4, 2);
-      px(ctx, 13, 3, PALETTE.grassMid, 2, 1);
-      // Soil strata
-      px(ctx, 0, 4, PALETTE.soilMid, 16, 5);
-      px(ctx, 0, 4, PALETTE.outlineDark, 16, 1);
-      px(ctx, 3, 6, PALETTE.soilLight, 4, 1);
-      px(ctx, 10, 7, PALETTE.soilDark, 5, 2);
-      // Deep rock base
-      px(ctx, 0, 9, PALETTE.rockMid, 16, 7);
-      px(ctx, 0, 9, PALETTE.soilDark, 16, 1);
-      px(ctx, 1, 11, PALETTE.rockLight, 5, 2);
-      px(ctx, 8, 12, PALETTE.rockDark, 6, 3);
-      px(ctx, 0, 15, PALETTE.outlinePlum, 16, 1);
-      // Hanging vine
-      px(ctx, 6, 3, PALETTE.grassDark, 1, 6);
-      px(ctx, 5, 7, PALETTE.grassLight, 1, 2);
-      this.textures.set('tile_cliff', makePixelTexture(c));
+      px(ctx, 0, 0, PALETTE.woodMid, 16, 16);
+      px(ctx, 0, 0, PALETTE.woodBright, 16, 3);
+      px(ctx, 0, 13, PALETTE.outlineDark, 16, 3);
+      px(ctx, 4, 5, PALETTE.woodDark, 6, 2);
+      px(ctx, 9, 9, PALETTE.woodLight, 5, 2);
+      this.textures.set('wood_fence_rail', makePixelTexture(c));
     }
 
     // Fence sprite (16x16)
@@ -458,6 +567,46 @@ class PixelArtRegistry {
         px(ctx, x, 14, PALETTE.outlineDark, 4, 2);
       }
       this.textures.set('stall_awning', makePixelTexture(c));
+    }
+
+    // Seed stall counter front displaying colorful seed sacks (32x16)
+    {
+      const [c, ctx] = makeCanvas(32, 16);
+      px(ctx, 0, 0, PALETTE.woodDark, 32, 16);
+      px(ctx, 1, 1, PALETTE.woodLight, 30, 3);
+      px(ctx, 2, 4, PALETTE.woodMid, 28, 10);
+      const bagCols = [PALETTE.teaGreen, PALETTE.amberGold, PALETTE.tealLight, PALETTE.whiteWarm, PALETTE.amberWarm];
+      bagCols.forEach((col, i) => {
+        const bx = 3 + i * 5;
+        px(ctx, bx, 6, PALETTE.outlineDark, 5, 8);
+        px(ctx, bx + 1, 7, PALETTE.creamMid, 3, 6);
+        px(ctx, bx + 1, 9, col, 3, 3);
+      });
+      this.textures.set('wall_seed_stall', makePixelTexture(c));
+    }
+
+    // Lighthouse framed glass beacon (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 0, 0, PALETTE.outlineDark, 16, 16);
+      px(ctx, 1, 1, PALETTE.navyDark, 14, 14);
+      px(ctx, 2, 2, PALETTE.amberWarm, 12, 12);
+      px(ctx, 3, 3, PALETTE.amberGold, 10, 10);
+      px(ctx, 5, 4, PALETTE.whiteWarm, 6, 7);
+      px(ctx, 7, 1, PALETTE.outlineDark, 2, 14);
+      px(ctx, 1, 7, PALETTE.outlineDark, 14, 2);
+      this.textures.set('wall_lighthouse_lamp', makePixelTexture(c));
+    }
+
+    // Roof ridge trim (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 0, 0, PALETTE.outlineDark, 16, 16);
+      px(ctx, 1, 2, PALETTE.roofDark, 14, 12);
+      px(ctx, 2, 4, PALETTE.amberGold, 2, 8);
+      px(ctx, 12, 4, PALETTE.amberGold, 2, 8);
+      px(ctx, 4, 6, PALETTE.roofLight, 8, 4);
+      this.textures.set('roof_ridge', makePixelTexture(c));
     }
   }
 
@@ -722,6 +871,124 @@ class PixelArtRegistry {
         }
       }
       this.textures.set('cloud_tuft', makePixelTexture(c));
+    }
+
+    // Garden rock (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      for (let dy = -5; dy <= 5; dy++) {
+        for (let dx = -6; dx <= 6; dx++) {
+          const d = (dx * dx) / 36 + (dy * dy) / 22;
+          if (d <= 1) {
+            const edge = d > 0.72;
+            const col = edge
+              ? PALETTE.outlinePlum
+              : dx + dy < -2
+                ? PALETTE.rockLight
+                : dy > 2
+                  ? PALETTE.rockDark
+                  : PALETTE.rockMid;
+            px(ctx, 8 + dx, 10 + dy, col);
+          }
+        }
+      }
+      px(ctx, 4, 6, PALETTE.grassMid, 3, 2);
+      px(ctx, 5, 5, PALETTE.grassLight, 2, 1);
+      this.textures.set('prop_rock', makePixelTexture(c));
+    }
+
+    // Stone garden lantern (16x24)
+    {
+      const [c, ctx] = makeCanvas(16, 24);
+      px(ctx, 4, 19, PALETTE.outlinePlum, 8, 4);
+      px(ctx, 5, 20, PALETTE.rockMid, 6, 2);
+      px(ctx, 6, 13, PALETTE.outlinePlum, 4, 7);
+      px(ctx, 7, 14, PALETTE.rockLight, 2, 5);
+      px(ctx, 4, 7, PALETTE.outlinePlum, 8, 7);
+      px(ctx, 5, 8, PALETTE.rockMid, 6, 5);
+      px(ctx, 6, 9, PALETTE.amberGold, 4, 3);
+      px(ctx, 7, 10, PALETTE.whiteWarm, 2, 2);
+      // Pagoda cap
+      px(ctx, 2, 5, PALETTE.outlinePlum, 12, 3);
+      px(ctx, 4, 3, PALETTE.rockLight, 8, 3);
+      px(ctx, 7, 1, PALETTE.outlinePlum, 2, 3);
+      this.textures.set('prop_stone_lantern', makePixelTexture(c));
+    }
+
+    // Hanging cliff vine & root (16x24)
+    {
+      const [c, ctx] = makeCanvas(16, 24);
+      px(ctx, 5, 0, PALETTE.grassDark, 2, 19);
+      px(ctx, 10, 0, PALETTE.grassMid, 2, 14);
+      for (let y = 3; y <= 17; y += 4) {
+        px(ctx, 3, y, PALETTE.grassLight, 2, 2);
+        px(ctx, 7, y + 1, PALETTE.grassMid, 2, 2);
+        if (y < 14) px(ctx, 12, y, PALETTE.grassBright, 2, 2);
+      }
+      px(ctx, 5, 20, PALETTE.grassLight, 2, 2);
+      this.textures.set('prop_hanging_vine', makePixelTexture(c));
+    }
+    {
+      const [c, ctx] = makeCanvas(16, 24);
+      px(ctx, 6, 0, PALETTE.woodDark, 3, 14);
+      px(ctx, 7, 1, PALETTE.woodMid, 1, 13);
+      px(ctx, 4, 7, PALETTE.woodDark, 2, 8);
+      px(ctx, 9, 9, PALETTE.woodMid, 2, 10);
+      px(ctx, 10, 19, PALETTE.woodDark, 1, 3);
+      this.textures.set('prop_hanging_root', makePixelTexture(c));
+    }
+
+    // Cozy bed for Home interior (24x24)
+    {
+      const [c, ctx] = makeCanvas(24, 24);
+      px(ctx, 2, 6, PALETTE.outlineDark, 20, 16);
+      px(ctx, 3, 7, PALETTE.woodDark, 18, 4);
+      px(ctx, 4, 8, PALETTE.woodBright, 16, 2);
+      px(ctx, 4, 11, PALETTE.creamLight, 16, 4);
+      px(ctx, 6, 11, PALETTE.whiteWarm, 12, 3);
+      // Red/gold quilt blanket
+      px(ctx, 3, 14, PALETTE.roofMid, 18, 6);
+      px(ctx, 4, 15, PALETTE.roofLight, 16, 3);
+      px(ctx, 4, 18, PALETTE.amberGold, 16, 1);
+      px(ctx, 3, 20, PALETTE.woodDark, 4, 3);
+      px(ctx, 17, 20, PALETTE.woodDark, 4, 3);
+      this.textures.set('prop_bed', makePixelTexture(c));
+    }
+
+    // Tea jar shelf for Teahouse interior (32x24)
+    {
+      const [c, ctx] = makeCanvas(32, 24);
+      px(ctx, 2, 2, PALETTE.outlineDark, 28, 21);
+      px(ctx, 3, 3, PALETTE.woodMid, 26, 19);
+      px(ctx, 4, 10, PALETTE.woodDark, 24, 2);
+      px(ctx, 4, 18, PALETTE.woodDark, 24, 2);
+      const jars = [
+        [6, 5, PALETTE.tealLight],
+        [13, 5, PALETTE.amberGold],
+        [20, 5, PALETTE.roofLight],
+        [7, 13, PALETTE.creamLight],
+        [14, 13, PALETTE.teaGreen],
+        [21, 13, PALETTE.tealDark],
+      ] as const;
+      for (const [jx, jy, jcol] of jars) {
+        px(ctx, jx, jy, PALETTE.outlineDark, 5, 5);
+        px(ctx, jx + 1, jy + 1, jcol, 3, 3);
+        px(ctx, jx + 1, jy, PALETTE.woodBright, 3, 1);
+      }
+      this.textures.set('prop_tea_shelf', makePixelTexture(c));
+    }
+
+    // Woven bamboo rug (32x24)
+    {
+      const [c, ctx] = makeCanvas(32, 24);
+      px(ctx, 1, 2, PALETTE.outlineDark, 30, 20);
+      px(ctx, 2, 3, PALETTE.roofMid, 28, 18);
+      px(ctx, 4, 5, PALETTE.amberGold, 24, 14);
+      px(ctx, 5, 6, PALETTE.creamMid, 22, 12);
+      for (let y = 7; y < 18; y += 3) {
+        px(ctx, 6, y, PALETTE.creamDark, 20, 1);
+      }
+      this.textures.set('prop_rug', makePixelTexture(c));
     }
   }
 

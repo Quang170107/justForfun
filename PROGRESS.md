@@ -1,13 +1,14 @@
 # PROGRESS — Trà Quán Trên Mây
 
 ## Giai đoạn hiện tại
-Phase 1 — Pipeline render pixel 2.5D (Xong, chờ xác nhận)
+Phase 2 — Thế giới & tileset (Xong, chờ xác nhận)
 
 ## Lịch sử
 | Phase | Trạng thái | Ngày | Ghi chú |
 |---|---|---|---|
 | 0 | Xong | 2026-11-18 | Khởi tạo git, sửa `README.md` UTF-8, thêm Debug Overlay (`F3`) và phím debug dev (`F5`–`F9`), đối chiếu hệ thống `src/` với `GAME_BRIEF.md` và `ROADMAP.md` |
 | 1 | Xong | 2026-11-19 | Hoàn thiện Y-Billboard chuẩn 1:1 texel (`1/cos(40°)`), screen-space pixel snapping, camera lerp mượt, xoay camera 90° ~0.3s, đồng bộ hướng nhìn 4 góc, hàm tiện ích chung trong `pixelArtGenerator.ts` |
+| 2 | Xong | 2026-11-19 | Tách bản đồ `src/data/islandMap.ts`, auto-tile 4 hướng (đá, gỗ, đất trồng), vách đảo 2.5D có rễ/dây leo, mái ngói Á Đông xếp lớp ngang + cửa vào/ra Nhà ở & Quán trà làm mờ mái lộ nội thất, hàng rào tự nối 4 hướng, đá/chậu hoa/đèn đá, bỏ khối hộp vàng trơn hải đăng |
 
 ## Đánh giá hệ thống (cập nhật liên tục)
 | Hệ thống | Trạng thái | Ghi chú |
@@ -15,7 +16,7 @@ Phase 1 — Pipeline render pixel 2.5D (Xong, chờ xác nhận)
 | Khung dự án & Build (`package.json`, `tsconfig.json`, `vite.config.ts`) | Có | Build `tsc && vite build` sạch, `.gitignore` bỏ qua `node_modules/`, `dist/`, `.vite/` |
 | Debug Overlay & Phím Debug (`F3`, `F5`–`F9`) | Có | Chỉ bật khi `import.meta.env.DEV`; hiển thị FPS, tọa độ, ô nhắm, giờ, thời tiết |
 | Render pixel 2.5D (`src/core/Game.ts`, `src/art/*`) | Có | RenderTarget `480×270` `NearestFilter`, scale bội số nguyên khi resize, `OrthographicCamera` 40° (1 ô = 16 px), camera lerp + screen-space pixel snap, xoay 90° mượt 0.3s, Y-billboard + bóng elip, helper tạo texture/billboard dùng chung |
-| Thế giới & Tileset (`src/world/*`) | Một phần | Đã có đảo 2.5D, vách đất đá, biển mây shader, Quán trà, Nhà ở, Sạp hạt giống, Hải đăng, thông/anh đào, va chạm; chưa tách map thành dữ liệu `src/data/`, chưa có auto-tile rìa, hàng rào tự nối 4 hướng và vào/ra nội thất (Phase 2) |
+| Thế giới & Tileset (`src/world/*`, `src/data/islandMap.ts`) | Có | Bản đồ 2D tách dữ liệu, auto-tile rìa đá/gỗ/đất 4 hướng, vách đảo 2.5D + dây leo/rễ cây, biển mây 4 phía, Quán trà & Nhà ở có cửa vào/ra làm mờ mái lộ nội thất, Sạp hạt giống & Hải đăng kính pixel, hàng rào tự nối 4 hướng, đá/chậu hoa/đèn đá, va chạm kín toàn đảo |
 | Nhân vật & Điều khiển (`src/entities/Player.ts`, `src/core/InputSystem.ts`) | Một phần | Đã có sprite 16×32 4 hướng × 4 frame, idle 2 frame, action tool, di chuyển trượt trục X/Z; còn thiếu con trỏ ô (`tile cursor`), click chuột vào ô và lăn chuột đổi hotbar (Phase 3) |
 | Thời gian, Ngày đêm, Lưu game (`src/core/TimeSystem.ts`, `src/core/SaveSystem.ts`) | Một phần | Đã có đồng hồ 6:00–24:00 (bước 10 phút), tint màu theo giờ, quầng sáng đèn đêm, save `localStorage` có `version`; thiếu màn hình tiêu đề, fade + bảng tóm tắt cuối ngày, phạt nhẹ quá 24:00 (Phase 4) |
 | Trồng trọt (`src/systems/FarmingSystem.ts`, `src/world/Tiles.ts`) | Một phần | Đã có đủ 5 cây (4 giai đoạn), cuốc/gieo/tưới/thu hoạch, mưa tự tưới, particle; thiếu thu hoạch nhiều lần cho trà xanh và icon bay vào túi (Phase 5) |
@@ -30,8 +31,7 @@ Phase 1 — Pipeline render pixel 2.5D (Xong, chờ xác nhận)
 
 ## Lỗi đã biết
 - Không có lỗi TypeScript hay lỗi biên dịch.
-- Lưu ý đồ họa cho Phase 2: `ConeGeometry` trên mái Nhà ở và mái tầng trên Quán trà hiện kéo texture `roof_tiles` hơi xoáy theo cạnh nón; cần thay bằng cấu trúc mái ngói lớp ngang (gabled/hipped roof) đúng kiểu Á Đông ở Phase 2.
 - Lưu ý trong `ShopSystem.ts`: bảng giá nâng cấp (`SHOP_UPGRADES`) hiện đang đặt trong `src/systems/ShopSystem.ts`, cần chuyển sang `src/data/` ở Phase 10 theo nguyên tắc tách dữ liệu khỏi logic.
 
 ## Câu hỏi cho người dùng
-- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 1, tôi sẽ chuyển sang **Giai đoạn 2 — Thế giới & tileset**.
+- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 2, tôi sẽ chuyển sang **Giai đoạn 3 — Nhân vật & điều khiển**.
