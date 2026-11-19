@@ -1,7 +1,7 @@
 import { pixelArt } from '../art/pixelArtGenerator';
-import { ITEMS, ROASTABLE_ITEMS } from '../data/crops';
+import { getQualityLabel, ITEMS, ROASTABLE_ITEMS } from '../data/crops';
 import { getSteepLabel, getTempLabel, RECIPES } from '../data/recipes';
-import { InventorySlot, TeaSteepTime, TeaWaterTemp } from '../data/types';
+import { InventorySlot, ItemId, TeaSteepTime, TeaWaterTemp } from '../data/types';
 import { BrewResult } from '../systems/BrewingSystem';
 
 export class BrewingScreen {
@@ -11,11 +11,16 @@ export class BrewingScreen {
   private steepTime: TeaSteepTime = 'short';
 
   private roastRaf: number | null = null;
+  private roastCleanupListeners: (() => void) | null = null;
 
   public cleanup(): void {
     if (this.roastRaf !== null) {
       cancelAnimationFrame(this.roastRaf);
       this.roastRaf = null;
+    }
+    if (this.roastCleanupListeners) {
+      this.roastCleanupListeners();
+      this.roastCleanupListeners = null;
     }
   }
 
@@ -86,7 +91,7 @@ export class BrewingScreen {
         const def = ITEMS[slot.itemId];
         const btn = document.createElement('button');
         btn.className = `choice-chip ${this.selectedBaseSlot === idx ? 'selected' : ''}`;
-        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name} ×${slot.count}`;
+        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name} ${'★'.repeat(slot.quality)} ×${slot.count}`;
         btn.onclick = () => {
           this.selectedBaseSlot = idx;
           this.renderBrewingCounter(modalBox, inventory, unlockedRecipes, onExecuteBrew, onClose);
@@ -107,7 +112,7 @@ export class BrewingScreen {
         const isSel = this.selectedAddonSlots.includes(idx);
         const btn = document.createElement('button');
         btn.className = `choice-chip ${isSel ? 'selected' : ''}`;
-        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name} ×${slot.count}`;
+        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name} ${'★'.repeat(slot.quality)} ×${slot.count}`;
         btn.onclick = () => {
           if (isSel) {
             this.selectedAddonSlots = this.selectedAddonSlots.filter((i) => i !== idx);
@@ -198,7 +203,7 @@ export class BrewingScreen {
   public renderRoastMiniGame(
     modalBox: HTMLElement,
     inventory: (InventorySlot | null)[],
-    onFinishRoast: (slotIdx: number, accuracyScore: number) => void,
+    onFinishRoast: (slotIdx: number, accuracyScore: number) => { itemId: ItemId; quality: 1 | 2 | 3 } | null,
     onClose: () => void
   ): void {
     this.cleanup();
@@ -209,7 +214,7 @@ export class BrewingScreen {
     header.innerHTML = `<h2>🔥 Chảo Sao Trà (Mini-Game)</h2>`;
     const closeBtn = document.createElement('button');
     closeBtn.className = 'pixel-btn small';
-    closeBtn.textContent = 'Đóng';
+    closeBtn.textContent = 'Đóng (Esc)';
     closeBtn.onclick = () => {
       this.cleanup();
       onClose();
@@ -239,16 +244,18 @@ export class BrewingScreen {
     pickDiv.innerHTML = '<div style="font-weight:700;margin-bottom:6px;">Chọn mẻ lá muốn sao:</div>';
     const chipRow = document.createElement('div');
     chipRow.className = 'chip-grid';
+    const chipButtons: HTMLButtonElement[] = [];
     roastableSlots.forEach(({ idx, slot }) => {
       const def = ITEMS[slot.itemId];
       const chip = document.createElement('button');
       chip.className = `choice-chip ${idx === chosenSlotIdx ? 'selected' : ''}`;
-      chip.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name} ×${slot.count}`;
+      chip.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name} ${'★'.repeat(slot.quality)} ×${slot.count}`;
       chip.onclick = () => {
         chosenSlotIdx = idx;
-        Array.from(chipRow.children).forEach((c) => c.classList.remove('selected'));
+        chipButtons.forEach((c) => c.classList.remove('selected'));
         chip.classList.add('selected');
       };
+      chipButtons.push(chip);
       chipRow.appendChild(chip);
     });
     pickDiv.appendChild(chipRow);
@@ -257,49 +264,100 @@ export class BrewingScreen {
     const gameBox = document.createElement('div');
     gameBox.className = 'card-box';
     gameBox.innerHTML = `
-      <div>Nhấn giữ (hoặc nhấp liên tục) nút <b>🔥 Quạt Lửa</b> để giữ kim nhiệt độ nằm trong <b>vùng xanh</b> suốt 4 giây!</div>
-      <div class="roast-bar">
-        <div class="roast-green-zone"></div>
-        <div id="roast-needle" class="roast-needle" style="left:20%;"></div>
+      <div>Giữ phím <b>Space / W / ↑</b> hoặc nhấn giữ nút <b>🔥 Quạt Lửa</b> để tăng nhiệt, nhả ra để hạ nhiệt. Giữ kim trong <b>vùng xanh</b> suốt 4 giây!</div>
+      <div class="roast-zone-labels">
+        <span>❄️ Lạnh</span>
+        <span>🌿 Vùng Xanh Chuẩn</span>
+        <span>🔥 Quá lửa</span>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <span id="roast-timer-txt">Thời gian còn lại: 4.0s • Chuẩn: 0%</span>
+      <div id="roast-bar" class="roast-bar">
+        <div class="roast-green-zone"></div>
+        <div id="roast-needle" class="roast-needle" style="left:22%;"></div>
+      </div>
+      <div id="roast-controls" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span id="roast-timer-txt">Thời gian: 4.0s • Trong vùng xanh: 0% • Dự kiến: ★</span>
         <div style="display:flex;gap:8px;">
           <button id="btn-roast-start" class="pixel-btn primary">Bắt Đầu Sao!</button>
-          <button id="btn-roast-fan" class="pixel-btn hidden">🔥 Quạt Lửa (Giữ / Nhấn)</button>
+          <button id="btn-roast-fan" class="pixel-btn hidden">🔥 Quạt Lửa (Giữ / Space)</button>
         </div>
       </div>
     `;
     modalBox.appendChild(gameBox);
 
+    const roastBarEl = gameBox.querySelector('#roast-bar') as HTMLElement;
     const needleEl = gameBox.querySelector('#roast-needle') as HTMLElement;
+    const controlsEl = gameBox.querySelector('#roast-controls') as HTMLElement;
     const timerTxtEl = gameBox.querySelector('#roast-timer-txt') as HTMLElement;
     const startBtn = gameBox.querySelector('#btn-roast-start') as HTMLButtonElement;
     const fanBtn = gameBox.querySelector('#btn-roast-fan') as HTMLButtonElement;
 
-    let needlePos = 22; // 0..98
-    let fanning = false;
+    let needlePos = 22; // 4..96
+    let keyFanning = false;
+    let mouseFanning = false;
+    let running = false;
     let remaining = 4.0;
     let inGreenTime = 0;
     let totalElapsed = 0;
     let lastTs = 0;
 
-    const startFan = () => {
-      fanning = true;
+    const startMouseFan = () => {
+      mouseFanning = true;
+      fanBtn.blur();
     };
-    const stopFan = () => {
-      fanning = false;
+    const stopMouseFan = () => {
+      mouseFanning = false;
     };
-    fanBtn.addEventListener('mousedown', startFan);
-    fanBtn.addEventListener('mouseup', stopFan);
-    fanBtn.addEventListener('mouseleave', stopFan);
-    fanBtn.addEventListener('touchstart', (e) => {
+    const onTouchStart = (e: TouchEvent) => {
       e.preventDefault();
-      startFan();
-    });
-    fanBtn.addEventListener('touchend', stopFan);
+      startMouseFan();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!running) return;
+      if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+        e.preventDefault();
+        keyFanning = true;
+      }
+    };
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.code === 'KeyW' || e.code === 'ArrowUp') {
+        keyFanning = false;
+      }
+    };
+    const onWindowReset = () => {
+      keyFanning = false;
+      mouseFanning = false;
+    };
+
+    fanBtn.addEventListener('mousedown', startMouseFan);
+    fanBtn.addEventListener('mouseup', stopMouseFan);
+    fanBtn.addEventListener('mouseleave', stopMouseFan);
+    fanBtn.addEventListener('touchstart', onTouchStart);
+    fanBtn.addEventListener('touchend', stopMouseFan);
+    fanBtn.addEventListener('touchcancel', stopMouseFan);
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('mouseup', onWindowReset);
+    window.addEventListener('blur', onWindowReset);
+
+    this.roastCleanupListeners = () => {
+      fanBtn.removeEventListener('mousedown', startMouseFan);
+      fanBtn.removeEventListener('mouseup', stopMouseFan);
+      fanBtn.removeEventListener('mouseleave', stopMouseFan);
+      fanBtn.removeEventListener('touchstart', onTouchStart);
+      fanBtn.removeEventListener('touchend', stopMouseFan);
+      fanBtn.removeEventListener('touchcancel', stopMouseFan);
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('mouseup', onWindowReset);
+      window.removeEventListener('blur', onWindowReset);
+    };
 
     startBtn.onclick = () => {
+      startBtn.blur();
+      running = true;
+      chipButtons.forEach((b) => {
+        b.disabled = true;
+      });
       startBtn.classList.add('hidden');
       fanBtn.classList.remove('hidden');
       lastTs = performance.now();
@@ -310,20 +368,77 @@ export class BrewingScreen {
         remaining -= dt;
         totalElapsed += dt;
 
+        const fanning = keyFanning || mouseFanning;
+        fanBtn.classList.toggle('active-fan', fanning);
+
         // Nhiệt giảm tự nhiên, quạt lửa tăng nhiệt
-        needlePos += (fanning ? 46 : -30) * dt;
-        needlePos = Math.max(2, Math.min(94, needlePos));
+        needlePos += (fanning ? 48 : -32) * dt;
+        needlePos = Math.max(4, Math.min(96, needlePos));
         needleEl.style.left = `${needlePos}%`;
 
-        if (needlePos >= 37 && needlePos <= 63) {
+        const inGreen = needlePos >= 36 && needlePos <= 64;
+        roastBarEl.classList.toggle('in-zone', inGreen);
+        if (inGreen) {
           inGreenTime += dt;
         }
         const score = totalElapsed > 0 ? inGreenTime / totalElapsed : 0;
-        timerTxtEl.textContent = `Thời gian: ${Math.max(0, remaining).toFixed(1)}s • Chuẩn: ${Math.round(score * 100)}%`;
+        const estStars = score >= 0.7 ? '★★★' : score >= 0.35 ? '★★' : '★';
+        timerTxtEl.textContent = `Thời gian: ${Math.max(0, remaining).toFixed(1)}s • Trong vùng xanh: ${Math.round(score * 100)}% • Dự kiến: ${estStars}`;
 
         if (remaining <= 0) {
-          this.roastRaf = null;
-          onFinishRoast(chosenSlotIdx, score);
+          running = false;
+          this.cleanup();
+          const result = onFinishRoast(chosenSlotIdx, score);
+          if (result !== null) {
+            fanBtn.classList.add('hidden');
+            controlsEl.classList.add('hidden');
+            const outDef = ITEMS[result.itemId];
+            const stars = '★'.repeat(result.quality);
+            const note =
+              result.quality === 3
+                ? 'Sao vừa lửa tuyệt hảo! Lá trà dậy hương thơm ngát.'
+                : result.quality === 2
+                  ? 'Sao đều tay! Mẻ trà có hương thơm rất ổn.'
+                  : 'Hơi lệch lửa một chút nhưng mẻ trà vẫn thơm ấm dùng pha trà tốt!';
+
+            const resCard = document.createElement('div');
+            resCard.className = 'roast-result-card';
+            resCard.innerHTML = `
+              <div class="card-top">
+                <img src="${pixelArt.getIconUrl(outDef.iconKey)}" alt="${outDef.name}" />
+                <div>
+                  <strong>${outDef.name} ${stars} (${getQualityLabel(result.quality)})</strong>
+                  <div style="font-size:13px;color:#6b3e26;">Giữ vùng xanh: ${Math.round(score * 100)}% • Không bao giờ hỏng mẻ!</div>
+                </div>
+              </div>
+              <div style="font-size:14px;">${note}</div>
+            `;
+
+            const actionRow = document.createElement('div');
+            actionRow.style.display = 'flex';
+            actionRow.style.gap = '8px';
+            actionRow.style.flexWrap = 'wrap';
+
+            const canRoastMore = inventory.some((s) => s && ROASTABLE_ITEMS.includes(s.itemId));
+            if (canRoastMore) {
+              const againBtn = document.createElement('button');
+              againBtn.className = 'pixel-btn primary small';
+              againBtn.textContent = '🔥 Sao Mẻ Tiếp';
+              againBtn.onclick = () => this.renderRoastMiniGame(modalBox, inventory, onFinishRoast, onClose);
+              actionRow.appendChild(againBtn);
+            }
+
+            const doneBtn = document.createElement('button');
+            doneBtn.className = 'pixel-btn small';
+            doneBtn.textContent = 'Đóng';
+            doneBtn.onclick = () => {
+              this.cleanup();
+              onClose();
+            };
+            actionRow.appendChild(doneBtn);
+            resCard.appendChild(actionRow);
+            gameBox.appendChild(resCard);
+          }
           return;
         }
         this.roastRaf = requestAnimationFrame(step);

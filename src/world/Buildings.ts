@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { pixelArt } from '../art/pixelArtGenerator';
 import { UpgradesState } from '../data/types';
+import { DryingRackVisualState } from '../systems/ProcessingSystem';
 import { Island } from './Island';
 
 export interface InteractiveZone {
@@ -31,6 +32,10 @@ export class Buildings {
 
   private beaconBeam!: THREE.Mesh;
   private dryingMat!: THREE.MeshBasicMaterial;
+  private dryingRackState: DryingRackVisualState = 'empty';
+  private dryingSparkle!: THREE.Sprite;
+  public readonly dryingRackPos = { x: 0.25, z: -0.6 };
+  public readonly roastWokPos = { x: 0.25, z: 1.4 };
   private extraTableGroup = new THREE.Group();
   private decorGroup = new THREE.Group();
   private smokeParticles: { sprite: THREE.Sprite; originY: number; phase: number }[] = [];
@@ -529,8 +534,8 @@ export class Buildings {
 
   private buildProcessingStations(island: Island): void {
     // Nong phơi tre (bên rìa Đông đồi trà, chừa trọn lối đá x=1)
-    const dx = 0.25;
-    const dz = -0.6;
+    const dx = this.dryingRackPos.x;
+    const dz = this.dryingRackPos.z;
     const drying = pixelArt.createYBillboard({
       textureKey: 'prop_drying_empty',
       widthPx: 24,
@@ -542,6 +547,19 @@ export class Buildings {
     drying.group.position.set(dx, 0, dz);
     this.dryingMat = drying.material;
     this.group.add(drying.group);
+
+    this.dryingSparkle = new THREE.Sprite(
+      new THREE.SpriteMaterial({
+        map: pixelArt.getTexture('sparkle_pixel'),
+        transparent: true,
+        depthWrite: false,
+      })
+    );
+    this.dryingSparkle.position.set(dx + 0.3, 1.52, dz + 0.1);
+    this.dryingSparkle.scale.set(0.45, 0.45, 1);
+    this.dryingSparkle.visible = false;
+    this.group.add(this.dryingSparkle);
+
     island.addCollider({ minX: dx - 0.52, maxX: dx + 0.52, minZ: dz - 0.4, maxZ: dz + 0.4 });
     this.zones.push({
       id: 'drying_rack',
@@ -552,8 +570,8 @@ export class Buildings {
     });
 
     // Chảo sao trà
-    const rx = 0.25;
-    const rz = 1.4;
+    const rx = this.roastWokPos.x;
+    const rz = this.roastWokPos.z;
     const wok = pixelArt.createYBillboard({
       textureKey: 'prop_roast_wok',
       widthPx: 24,
@@ -654,9 +672,17 @@ export class Buildings {
     }
   }
 
-  public setDryingRackHasLeaves(hasLeaves: boolean): void {
-    this.dryingMat.map = pixelArt.getTexture(hasLeaves ? 'prop_drying_full' : 'prop_drying_empty');
+  public setDryingRackState(state: DryingRackVisualState): void {
+    this.dryingRackState = state;
+    const texKey =
+      state === 'ready'
+        ? 'prop_drying_ready'
+        : state === 'drying'
+          ? 'prop_drying_drying'
+          : 'prop_drying_empty';
+    this.dryingMat.map = pixelArt.getTexture(texKey);
     this.dryingMat.needsUpdate = true;
+    this.dryingSparkle.visible = state === 'ready';
   }
 
   public isInsideHome(px: number, pz: number): boolean {
@@ -731,6 +757,12 @@ export class Buildings {
       s.sprite.position.y = s.originY + cycle * 1.4;
       const mat = s.sprite.material as THREE.SpriteMaterial;
       mat.opacity = (1 - cycle) * 0.5;
+    }
+
+    if (this.dryingRackState === 'ready') {
+      const pulse = 0.36 + Math.abs(Math.sin(elapsed * 4.4)) * 0.24;
+      this.dryingSparkle.scale.set(pulse, pulse, 1);
+      this.dryingSparkle.position.y = 1.5 + Math.sin(elapsed * 3.6) * 0.08;
     }
   }
 }

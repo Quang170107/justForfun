@@ -1,4 +1,4 @@
-import { ITEMS } from '../data/crops';
+import { getQualityPriceMultiplier, ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import { RECIPES } from '../data/recipes';
 import { ActiveCustomer, ItemId, MemoryCutscene, NpcId, UpgradesState } from '../data/types';
@@ -140,11 +140,11 @@ export class ShopSystem {
     const npcDef = NPCS[customer.npcId];
     const exactMatch = wantedRecipe.resultItemId === teaItemId;
 
-    const qualityMult = quality === 3 ? 1.35 : quality === 2 ? 1.15 : 1.0;
+    const qualityMult = getQualityPriceMultiplier(quality);
     const baseMoney = exactMatch ? wantedRecipe.price : ITEMS[teaItemId].sellPrice;
     const moneyEarned = Math.round(baseMoney * qualityMult);
 
-    const heartPts = exactMatch ? 65 + (quality - 1) * 15 : 20;
+    const heartPts = exactMatch ? 65 + (quality - 1) * 15 : 20 + (quality - 1) * 8;
     const memory = this.relations.addPoints(customer.npcId, heartPts);
 
     let bonusGiftSeed: ItemId | null = null;
@@ -156,9 +156,10 @@ export class ShopSystem {
     customer.state = 'served';
     customer.waitTimer = 0;
 
+    const qualityPraise = quality === 3 ? ' Hương vị thượng hạng ★★★!' : quality === 2 ? ' Rất thơm ngon ★★!' : '';
     const message = exactMatch
-      ? `${npcDef.name} mỉm cười mãn nguyện: "Đúng hương vị tôi mong chờ rồi! (+${moneyEarned} Xu Mây)"`
-      : `${npcDef.name} nhấp một ngụm: "Tuy không phải vị quen, nhưng tách trà vẫn rất ấm áp. (+${moneyEarned} Xu Mây)"`;
+      ? `${npcDef.name} mỉm cười mãn nguyện: "Đúng hương vị tôi mong chờ rồi!${qualityPraise} (+${moneyEarned} Xu Mây)"`
+      : `${npcDef.name} nhấp một ngụm: "Tuy không phải vị quen, nhưng tách trà vẫn rất ấm áp.${qualityPraise} (+${moneyEarned} Xu Mây)"`;
 
     return { moneyEarned, exactMatch, message, memory, bonusGiftSeed };
   }

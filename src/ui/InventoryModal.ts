@@ -58,7 +58,7 @@ export class InventoryModal {
       hint.style.margin = '0 0 10px';
       hint.style.fontSize = '14px';
       hint.textContent =
-        'Hàng đầu tiên (1–9) là thanh Hotbar. Nhấp hai ô bất kỳ để đổi vị trí vật phẩm.';
+        'Hàng đầu tiên (1–9) là thanh Hotbar. Nhấp hai ô để đổi vị trí hoặc gộp chồng vật phẩm cùng loại & cùng chất lượng ★.';
       modalBox.appendChild(hint);
 
       const grid = document.createElement('div');
@@ -85,9 +85,9 @@ export class InventoryModal {
             cnt.textContent = String(slot.count);
             div.appendChild(cnt);
           }
-          if (def.category !== 'tool' && def.category !== 'seed' && slot.quality > 1) {
+          if (def.category !== 'tool' && def.category !== 'seed') {
             const st = document.createElement('span');
-            st.className = 'slot-star';
+            st.className = `slot-star q${slot.quality}`;
             st.textContent = '★'.repeat(slot.quality);
             div.appendChild(st);
           }

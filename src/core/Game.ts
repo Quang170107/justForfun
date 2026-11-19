@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { PALETTE } from '../art/palette';
 import { CAMERA_ELEVATION_RAD, PIXELS_PER_UNIT, pixelArt } from '../art/pixelArtGenerator';
-import { DRYING_OUTPUT_MAP, ITEMS } from '../data/crops';
+import { DRYING_OUTPUT_MAP, getItemSellValue, ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import {
   DailySummaryStats,
@@ -183,7 +183,7 @@ export class Game {
 
     this.farming = new FarmingSystem(this.tiles, this.weather, this.audio);
     this.processing = new ProcessingSystem(loaded.dryingRack);
-    this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
+    this.buildings.setDryingRackState(this.processing.getVisualState());
 
     this.brewing = new BrewingSystem(loaded.unlockedRecipes);
     this.relations = new RelationshipSystem(loaded.relations);
@@ -282,7 +282,7 @@ export class Game {
     this.tiles.loadPlots(data.plots, this.upgrades.expandedFarmUnlocked);
     this.buildings.applyUpgrades(this.upgrades);
     this.processing = new ProcessingSystem(data.dryingRack);
-    this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
+    this.buildings.setDryingRackState(this.processing.getVisualState());
     this.brewing = new BrewingSystem(data.unlockedRecipes);
     this.relations = new RelationshipSystem(data.relations);
     this.shop = new ShopSystem(this.relations);
@@ -769,6 +769,27 @@ export class Game {
       this.upgrades.extraTableUnlocked
     );
     if (zone && zone.id !== 'tea_table') {
+      if (zone.id === 'drying_rack') {
+        const readyCount = this.processing.getReadyCount();
+        const held = this.getHeldSlot();
+        if (readyCount > 0) {
+          this.ui.hud.setPrompt(`Thu ${readyCount} mẻ lá khô (Nong tre)`);
+        } else if (held && DRYING_OUTPUT_MAP[held.itemId] && this.processing.hasEmptySlot()) {
+          this.ui.hud.setPrompt(`Phơi ${ITEMS[held.itemId].name} lên Nong tre`);
+        } else {
+          const dryingCount = this.processing.getDryingCount();
+          this.ui.hud.setPrompt(
+            dryingCount > 0
+              ? `Nong tre (đang phơi ${dryingCount}/3 mẻ)`
+              : 'Nong Phơi Lá Tre (cầm lá tươi để phơi)'
+          );
+        }
+        return;
+      }
+      if (zone.id === 'roast_wok') {
+        this.ui.hud.setPrompt('Sao trà trên Chảo Sao (Mini-game)');
+        return;
+      }
       this.ui.hud.setPrompt(zone.label);
       return;
     }
@@ -933,11 +954,7 @@ export class Game {
     const targetZ = overrideZ ?? this.targetTileZ + 0.5;
 
     const onHarvestVisual = (harvestItemId: ItemId, wx: number, wz: number) => {
-      const proj = new THREE.Vector3(wx, 0.9, wz).project(this.camera);
-      const rect = this.renderer.domElement.getBoundingClientRect();
-      const sx = rect.left + (proj.x * 0.5 + 0.5) * rect.width;
-      const sy = rect.top + (-proj.y * 0.5 + 0.5) * rect.height;
-      this.ui.hud.spawnFlyingItem(ITEMS[harvestItemId].iconKey, sx, sy);
+      this.spawnWorldFlyingItem(ITEMS[harvestItemId].iconKey, wx, 0.9, wz);
     };
 
     let acted = this.farming.tryFarmAction(
@@ -979,26 +996,47 @@ export class Game {
     }
   }
 
+  private spawnWorldFlyingItem(iconKey: string, wx: number, wy: number, wz: number): void {
+    const proj = new THREE.Vector3(wx, wy, wz).project(this.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const sx = rect.left + (proj.x * 0.5 + 0.5) * rect.width;
+    const sy = rect.top + (-proj.y * 0.5 + 0.5) * rect.height;
+    this.ui.hud.spawnFlyingItem(iconKey, sx, sy);
+  }
+
   private interactDryingRack(): void {
-    const collected = this.processing.collectReadyFromRack();
-    if (collected.length > 0) {
-      let okCount = 0;
-      for (const item of collected) {
-        if (this.addItem(item.itemId, 1, item.quality)) okCount++;
+    const rackPos = this.buildings.dryingRackPos;
+    if (this.processing.getReadyCount() > 0) {
+      const collected = this.processing.collectReadyFromRack((itemId, quality) =>
+        this.addItem(itemId, 1, quality)
+      );
+      if (collected.length === 0) {
+        this.ui.hud.showToast('Túi đồ đã đầy, hãy dọn bớt ô trống để thu lá khô!');
+        return;
       }
       this.audio.playHarvest();
-      this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
-      this.ui.hud.showToast(`☀️ Đã thu ${okCount} mẻ nguyên liệu phơi khô từ nong tre!`);
+      this.buildings.setDryingRackState(this.processing.getVisualState());
+      this.weather.spawnBurst(rackPos.x, 0.8, rackPos.z, PALETTE.amberGold, 10);
+      this.spawnWorldFlyingItem(ITEMS[collected[0].itemId].iconKey, rackPos.x, 0.9, rackPos.z);
+      const summary = collected
+        .map((c) => `${ITEMS[c.itemId].name} ${'★'.repeat(c.quality)}`)
+        .join(', ');
+      this.ui.hud.showToast(`☀️ Thu từ nong tre: ${summary}`);
       return;
     }
 
     const held = this.getHeldSlot();
     if (held && DRYING_OUTPUT_MAP[held.itemId]) {
+      const itemName = ITEMS[held.itemId].name;
+      const starTxt = '★'.repeat(held.quality);
       if (this.processing.putOnDryingRack(held.itemId, held.quality)) {
         this.consumeAtSlot(this.selectedHotbarIndex, 1);
         this.audio.playHarvest();
-        this.buildings.setDryingRackHasLeaves(true);
-        this.ui.hud.showToast(`🧺 Đã trải ${ITEMS[held.itemId].name} lên nong tre (xong vào sáng mai).`);
+        this.weather.spawnBurst(rackPos.x, 0.75, rackPos.z, PALETTE.grassLight, 8);
+        this.buildings.setDryingRackState(this.processing.getVisualState());
+        this.ui.hud.showToast(
+          `🧺 Đã trải ${itemName} ${starTxt} lên nong tre (${this.processing.getDryingCount()}/3, xong vào sáng mai).`
+        );
       } else {
         this.ui.hud.showToast('Nong tre đang đầy (tối đa 3 mẻ), hãy chờ sáng mai thu nhé!');
       }
@@ -1053,9 +1091,22 @@ export class Game {
       this.brewing.unlockedRecipes,
       this.relations,
       (a, b) => {
-        const tmp = this.inventory[a];
-        this.inventory[a] = this.inventory[b];
-        this.inventory[b] = tmp;
+        if (a === b) return;
+        const src = this.inventory[a];
+        const dst = this.inventory[b];
+        if (
+          src &&
+          dst &&
+          src.itemId === dst.itemId &&
+          src.quality === dst.quality &&
+          ITEMS[src.itemId].stackable
+        ) {
+          dst.count += src.count;
+          this.inventory[a] = null;
+          return;
+        }
+        this.inventory[a] = dst;
+        this.inventory[b] = src;
       },
       () => this.ui.closeModal()
     );
@@ -1111,14 +1162,26 @@ export class Game {
       this.inventory,
       (slotIdx, accuracyScore) => {
         const slot = this.inventory[slotIdx];
-        if (!slot) return;
-        this.consumeAtSlot(slotIdx, 1);
+        if (!slot) return null;
         const q = this.processing.getRoastResultQuality(accuracyScore);
+        const hasStack = this.inventory.some(
+          (s) => s !== null && s.itemId === 'tea_roasted' && s.quality === q
+        );
+        const hasSpaceAfterConsume = slot.count === 1 || this.inventory.some((s) => s === null);
+        if (!hasStack && !hasSpaceAfterConsume) {
+          this.ui.hud.showToast('Túi đồ đã đầy, hãy dọn bớt ô trống để nhận Trà Sao Thơm!');
+          return null;
+        }
+
+        this.consumeAtSlot(slotIdx, 1);
         this.addItem('tea_roasted', 1, q);
         this.time.advanceMinutes(20);
         this.audio.playHarvest();
-        this.ui.closeModal();
+        const wokPos = this.buildings.roastWokPos;
+        this.weather.spawnBurst(wokPos.x, 0.85, wokPos.z, PALETTE.amberGold, 10);
+        this.spawnWorldFlyingItem(ITEMS.tea_roasted.iconKey, wokPos.x, 0.9, wokPos.z);
         this.ui.hud.showToast(`🔥 Sao thành công Trà Sao Thơm (${'★'.repeat(q)})!`);
+        return { itemId: 'tea_roasted', quality: q };
       },
       () => this.ui.closeModal()
     );
@@ -1158,8 +1221,7 @@ export class Game {
         (slotIdx) => {
           const s = this.inventory[slotIdx];
           if (!s) return;
-          const base = ITEMS[s.itemId].sellPrice;
-          const val = Math.round(base * (s.quality === 3 ? 1.3 : s.quality === 2 ? 1.15 : 1));
+          const val = getItemSellValue(s.itemId, s.quality);
           this.consumeAtSlot(slotIdx, 1);
           this.money += val;
           this.dailySalesIncome += val;
@@ -1268,7 +1330,7 @@ export class Game {
 
       this.farming.onNewDay(isRain);
       this.processing.onNewDay();
-      this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
+      this.buildings.setDryingRackState(this.processing.getVisualState());
       this.relations.onNewDay();
       this.shop.onNewDay();
 

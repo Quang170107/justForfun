@@ -1,7 +1,7 @@
 # PROGRESS — Trà Quán Trên Mây
 
 ## Giai đoạn hiện tại
-Phase 5 — Trồng trọt (Xong, chờ xác nhận)
+Phase 6 — Chế biến (Xong, chờ xác nhận)
 
 ## Lịch sử
 | Phase | Trạng thái | Ngày | Ghi chú |
@@ -12,6 +12,7 @@ Phase 5 — Trồng trọt (Xong, chờ xác nhận)
 | 3 | Xong | 2026-11-19 | Khớp animation bước chân theo quãng đường thực, chuẩn hóa 8 hướng + trượt dọc tường & lách góc, con trỏ ô (`tile cursor`), click chuột trong tầm 1 ô, lăn chuột đổi hotbar, animation công cụ 3 frame 4 hướng kèm khóa di chuyển và gợi ý ngữ cảnh `[E]` |
 | 4 | Xong | 2026-11-19 | Màn hình tiêu đề (Tiếp tục / Chơi mới / Cài đặt), ánh sáng ngày đêm mượt & quầng sáng cửa sổ shoji/đèn đêm, ngủ tối màn hình + bảng Tóm tắt cuối ngày, phạt nhẹ 10% tối đa 50 Xu Mây khi quá 24:00, hệ thống `SaveSystem` có `saveVersion: 2` & migration |
 | 5 | Xong | 2026-11-19 | Hoàn thiện vòng trồng 5 cây (4 giai đoạn), Trà Xanh thu hoạch nhiều lần mọc lại sau 2 ngày, dấu hiệu lấp lánh pixel `sparkle_pixel` khi cây chín, hiệu ứng lá bay & icon bay vào túi khi thu hoạch |
+| 6 | Xong | 2026-11-19 | Hoàn thiện chế biến: Nong tre 3 trạng thái sprite (trống / đang phơi / đã xong có sao lấp lánh `sparkle_pixel`), mini-game Chảo sao điều khiển bằng cả giữ phím (`Space`/`W`/`↑`) và chuột, đủ 3 mức chất lượng `★ / ★★ / ★★★` ảnh hưởng giá bán/độ vui và gộp chồng theo cùng loại & cùng chất lượng |
 
 ## Đánh giá hệ thống (cập nhật liên tục)
 | Hệ thống | Trạng thái | Ghi chú |
@@ -23,7 +24,7 @@ Phase 5 — Trồng trọt (Xong, chờ xác nhận)
 | Nhân vật & Điều khiển (`src/entities/Player.ts`, `src/core/InputSystem.ts`) | Có | Sprite 16×32 đi 4 hướng × 4 frame + idle 2 frame khớp quãng đường thực (không foot sliding), chuẩn hóa 8 hướng + trượt dọc tường/góc, con trỏ ô (`tile cursor`) hỗ trợ click chuột 1 ô, hotbar `1–9` + lăn chuột, animation công cụ 3 frame khóa di chuyển, gợi ý ngữ cảnh `[E]` |
 | Thời gian, Ngày đêm, Lưu game (`src/core/TimeSystem.ts`, `src/core/SaveSystem.ts`) | Có | Đồng hồ 6:00–24:00 (bước 10 phút, tạm dừng khi mở UI), tint ngày đêm mượt + đèn lồng/cửa sổ/đèn đá phát sáng cộng màu, màn hình tiêu đề (Tiếp tục / Chơi mới / Cài đặt), fade ngủ + Tóm tắt cuối ngày, tự ngủ gục 24:00 phạt 10% tối đa 50 Xu Mây, `localStorage` có `saveVersion: 2` & migration từ v1 |
 | Trồng trọt (`src/systems/FarmingSystem.ts`, `src/world/Tiles.ts`, `src/data/crops.ts`) | Có | Đủ 5 cây trồng 4 giai đoạn (lay gió), cuốc/gieo/tưới/thu hoạch, cây không tưới đứng yên không chết, mưa tự tưới, Trà xanh thu nhiều lần (`regrowDays: 2`), cây chín lấp lánh, đất văng/giọt nước/lá bay & icon bay vào túi, lưu trạng thái từng ô |
-| Chế biến (`src/systems/ProcessingSystem.ts`, `src/ui/BrewingScreen.ts`) | Một phần | Đã có nong tre phơi 1 ngày và mini-game chảo sao với chất lượng ★–★★★; mini-game mới nhận chuột (chưa giữ phím Space) và cần hoàn thiện stack theo chất lượng (Phase 6) |
+| Chế biến (`src/systems/ProcessingSystem.ts`, `src/ui/BrewingScreen.ts`) | Có | Nong tre phơi lá 1 ngày (3 sprite trống / đang phơi / đã xong + sao lấp lánh), mini-game Chảo sao giữ phím `Space`/`W`/`↑` hoặc chuột ra chất lượng ★–★★★ không thất bại, lưu & gộp chồng theo chất lượng ảnh hưởng giá bán và độ vui khách |
 | Pha trà & Sổ Công Thức (`src/systems/BrewingSystem.ts`, `src/data/recipes.ts`) | Một phần | Đã có quầy pha trà 3 bước, 5 công thức + Trà Lạ, Sổ Công Thức lưu/mở; còn thiếu hoạt cảnh rót nước/hơi bốc và đổi màu trà trực quan (Phase 7) |
 | Quán trà & Khách (`src/systems/ShopSystem.ts`, `src/entities/Customer.ts`) | Một phần | Đã có quán mở 14:00–20:00, 3–6 khách ngồi bàn, order gợi ý mơ hồ, phục vụ nhận Xu Mây + tim; chưa có biển Mở/Đóng chủ động và khách vãng lai ngẫu nhiên ngoài 4 NPC (Phase 8) |
 | NPC, Hội thoại, Thân thiết (`src/entities/NPC.ts`, `src/systems/RelationshipSystem.ts`, `src/data/*`) | Một phần | Đã có 4 NPC riêng, chân dung 64×64 (3 biểu cảm), chữ chạy kèm bíp, mốc ký ức 2/5/8/10 tim; thiếu lịch trình sáng/chiều/tối đổi theo mưa và hội thoại biến thiên theo thời tiết/tim (Phase 9) |
@@ -37,4 +38,4 @@ Phase 5 — Trồng trọt (Xong, chờ xác nhận)
 - Lưu ý trong `ShopSystem.ts`: bảng giá nâng cấp (`SHOP_UPGRADES`) hiện đang đặt trong `src/systems/ShopSystem.ts`, cần chuyển sang `src/data/` ở Phase 10 theo nguyên tắc tách dữ liệu khỏi logic.
 
 ## Câu hỏi cho người dùng
-- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 5, tôi sẽ chuyển sang **Giai đoạn 6 — Chế biến**.
+- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 6, tôi sẽ chuyển sang **Giai đoạn 7 — Pha trà & Sổ Công Thức**.

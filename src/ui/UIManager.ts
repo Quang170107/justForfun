@@ -1,5 +1,5 @@
 import { AudioSystem } from '../core/AudioSystem';
-import { ITEMS } from '../data/crops';
+import { getItemSellValue, getQualityLabel, ITEMS } from '../data/crops';
 import { InventorySlot } from '../data/types';
 import { BrewingScreen } from './BrewingScreen';
 import { DialogueBox } from './DialogueBox';
@@ -122,8 +122,12 @@ export class UIManager {
   public showTooltip(slot: InventorySlot, clientX: number, clientY: number): void {
     const def = ITEMS[slot.itemId];
     this.tooltipTitle.textContent = def.name;
-    this.tooltipQuality.textContent =
-      def.category !== 'tool' && def.category !== 'seed' ? `Chất lượng: ${'★'.repeat(slot.quality)}` : '';
+    if (def.category !== 'tool' && def.category !== 'seed') {
+      const sellPart = def.sellPrice > 0 ? ` • Giá bán: ${getItemSellValue(slot.itemId, slot.quality)} Xu` : '';
+      this.tooltipQuality.textContent = `Chất lượng: ${'★'.repeat(slot.quality)} (${getQualityLabel(slot.quality)})${sellPart}`;
+    } else {
+      this.tooltipQuality.textContent = '';
+    }
     this.tooltipDesc.textContent = def.description;
     this.tooltipEl.style.left = `${Math.min(window.innerWidth - 255, clientX + 14)}px`;
     this.tooltipEl.style.top = `${Math.min(window.innerHeight - 130, clientY + 14)}px`;

@@ -45,7 +45,7 @@ export function createDefaultSave(): SaveData {
   inventory[3] = { itemId: 'seed_green_tea', count: 6, quality: 1 };
   inventory[4] = { itemId: 'seed_chrysanthemum', count: 3, quality: 1 };
   inventory[5] = { itemId: 'seed_mint', count: 3, quality: 1 };
-  inventory[6] = { itemId: 'leaf_green_tea_fresh', count: 2, quality: 1 };
+  inventory[6] = { itemId: 'leaf_green_tea_fresh', count: 4, quality: 1 };
   inventory[7] = { itemId: 'honey', count: 2, quality: 1 };
 
   return {

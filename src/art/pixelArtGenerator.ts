@@ -740,22 +740,61 @@ class PixelArtRegistry {
       this.textures.set('prop_table', makePixelTexture(c));
     }
 
-    // Bamboo Drying Rack (24x24) - empty & full
-    for (const hasLeaves of [false, true]) {
-      const [c, ctx] = makeCanvas(24, 24);
+    // Bamboo Drying Rack (24x24) - empty, drying (fresh green leaves), ready (golden-brown dried leaves)
+    const drawDryingRackBase = (ctx: CanvasRenderingContext2D) => {
+      // Legs & shadow outline
       px(ctx, 4, 14, PALETTE.outlineDark, 2, 8);
+      px(ctx, 5, 15, PALETTE.woodDark, 1, 6);
       px(ctx, 18, 14, PALETTE.outlineDark, 2, 8);
+      px(ctx, 19, 15, PALETTE.woodDark, 1, 6);
+      px(ctx, 6, 15, PALETTE.woodDark, 12, 2);
+      // Woven bamboo tray
       px(ctx, 2, 8, PALETTE.outlineDark, 20, 8);
-      px(ctx, 3, 9, PALETTE.woodBright, 18, 6);
+      px(ctx, 3, 9, PALETTE.woodBright, 18, 5);
+      px(ctx, 3, 14, PALETTE.woodMid, 18, 1);
       for (let x = 4; x < 20; x += 2) {
         px(ctx, x, 10, PALETTE.woodMid, 1, 4);
       }
-      if (hasLeaves) {
-        px(ctx, 5, 9, PALETTE.grassMid, 4, 3);
-        px(ctx, 10, 10, PALETTE.teaGreen, 5, 3);
-        px(ctx, 15, 9, PALETTE.amberGold, 3, 2);
-      }
-      this.textures.set(hasLeaves ? 'prop_drying_full' : 'prop_drying_empty', makePixelTexture(c));
+      px(ctx, 4, 9, PALETTE.creamDark, 16, 1);
+    };
+
+    {
+      const [c, ctx] = makeCanvas(24, 24);
+      drawDryingRackBase(ctx);
+      this.textures.set('prop_drying_empty', makePixelTexture(c));
+    }
+
+    {
+      // Đang phơi: lá trà & thảo mộc tươi xanh trải đều trên nong
+      const [c, ctx] = makeCanvas(24, 24);
+      drawDryingRackBase(ctx);
+      px(ctx, 4, 9, PALETTE.grassDark, 5, 4);
+      px(ctx, 5, 8, PALETTE.grassMid, 4, 3);
+      px(ctx, 6, 8, PALETTE.grassBright, 2, 1);
+      px(ctx, 9, 9, PALETTE.teaGreen, 6, 4);
+      px(ctx, 10, 8, PALETTE.grassLight, 4, 3);
+      px(ctx, 11, 8, PALETTE.whiteWarm, 1, 1);
+      px(ctx, 15, 9, PALETTE.grassDark, 5, 4);
+      px(ctx, 16, 8, PALETTE.grassMid, 3, 2);
+      px(ctx, 17, 10, PALETTE.amberGold, 2, 2);
+      this.textures.set('prop_drying_drying', makePixelTexture(c));
+      this.textures.set('prop_drying_full', this.textures.get('prop_drying_drying')!);
+    }
+
+    {
+      // Đã phơi xong: lá khô vàng nâu giòn ấm trên nong
+      const [c, ctx] = makeCanvas(24, 24);
+      drawDryingRackBase(ctx);
+      px(ctx, 4, 9, PALETTE.soilDark, 5, 4);
+      px(ctx, 5, 8, PALETTE.soilMid, 4, 3);
+      px(ctx, 6, 9, PALETTE.amberWarm, 2, 2);
+      px(ctx, 9, 9, PALETTE.woodDark, 6, 4);
+      px(ctx, 10, 8, PALETTE.amberWarm, 4, 3);
+      px(ctx, 11, 8, PALETTE.amberGold, 2, 2);
+      px(ctx, 15, 9, PALETTE.soilMid, 5, 4);
+      px(ctx, 16, 8, PALETTE.amberGold, 3, 2);
+      px(ctx, 12, 9, PALETTE.creamLight, 1, 1);
+      this.textures.set('prop_drying_ready', makePixelTexture(c));
     }
 
     // Roasting Wok Stove (24x24)

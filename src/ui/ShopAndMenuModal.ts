@@ -1,5 +1,5 @@
 import { pixelArt } from '../art/pixelArtGenerator';
-import { ITEMS } from '../data/crops';
+import { getItemSellValue, ITEMS } from '../data/crops';
 import { GRANDMA_LETTER_LINES } from '../data/dialogues';
 import { DailySummaryStats, InventorySlot, ItemId, UpgradesState } from '../data/types';
 import { SHOP_SEEDS, SHOP_UPGRADES } from '../systems/ShopSystem';
@@ -102,10 +102,11 @@ export class ShopAndMenuModal {
       sellRow.className = 'chip-grid';
       for (const { idx, slot } of sellable) {
         const def = ITEMS[slot.itemId];
-        const val = Math.round(def.sellPrice * (slot.quality === 3 ? 1.3 : slot.quality === 2 ? 1.15 : 1));
+        const val = getItemSellValue(slot.itemId, slot.quality);
+        const starTag = def.category !== 'seed' && def.category !== 'tool' ? ` ${'★'.repeat(slot.quality)}` : '';
         const btn = document.createElement('button');
         btn.className = 'choice-chip';
-        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> Bán 1 ${def.name} (+${val} Xu)`;
+        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> Bán 1 ${def.name}${starTag} (+${val} Xu)`;
         btn.onclick = () => onSellSlot(idx);
         sellRow.appendChild(btn);
       }

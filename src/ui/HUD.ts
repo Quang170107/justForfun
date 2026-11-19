@@ -143,9 +143,9 @@ export class HUD {
           div.appendChild(cnt);
         }
 
-        if (def.category !== 'tool' && def.category !== 'seed' && slot.quality > 1) {
+        if (def.category !== 'tool' && def.category !== 'seed') {
           const st = document.createElement('span');
-          st.className = 'slot-star';
+          st.className = `slot-star q${slot.quality}`;
           st.textContent = '★'.repeat(slot.quality);
           div.appendChild(st);
         }

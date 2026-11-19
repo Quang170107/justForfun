@@ -423,11 +423,30 @@ body {
 
 .slot-star {
   position: absolute;
-  top: 1px;
+  top: 2px;
   right: 2px;
-  font-size: 10px;
-  color: #b8433a;
+  font-size: 9px;
+  letter-spacing: -1px;
+  line-height: 1;
   font-weight: 700;
+}
+
+.slot-star.q1 {
+  color: #8f5a34;
+  text-shadow: 1px 1px 0 var(--cream-light);
+}
+
+.slot-star.q2 {
+  color: #b8433a;
+  text-shadow: 1px 1px 0 var(--cream-light);
+}
+
+.slot-star.q3 {
+  color: #f2c14e;
+  text-shadow:
+    1px 1px 0 var(--outline),
+    -1px 0 0 var(--outline),
+    0 -1px 0 var(--outline);
 }
 
 .controls-hint {
@@ -715,21 +734,35 @@ body {
 }
 
 /* Roasting Mini-Game Gauge */
+.roast-zone-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--wood-dark);
+  margin-top: 10px;
+}
+
 .roast-bar {
   position: relative;
   height: 32px;
   background: var(--cream-dark);
   border: 3px solid var(--outline);
-  margin: 14px 0;
+  margin: 4px 0 12px;
   overflow: hidden;
+  transition: box-shadow 0.12s ease;
+}
+
+.roast-bar.in-zone {
+  box-shadow: 0 0 0 2px #5a9c3a, inset 0 0 8px rgba(124, 193, 66, 0.55);
 }
 
 .roast-green-zone {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 38%;
-  width: 26%;
+  left: 36%;
+  width: 28%;
   background: #7cc142;
   border-left: 2px solid var(--outline);
   border-right: 2px solid var(--outline);
@@ -740,6 +773,22 @@ body {
   top: 0;
   bottom: 0;
   width: 8px;
+  transform: translateX(-50%);
   background: #b8433a;
   border: 2px solid var(--outline);
+}
+
+#btn-roast-fan.active-fan {
+  background: var(--gold);
+  transform: translateY(2px);
+}
+
+.roast-result-card {
+  margin-top: 12px;
+  padding: 12px;
+  background: var(--cream-light);
+  border: 3px solid var(--outline);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }

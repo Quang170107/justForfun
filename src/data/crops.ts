@@ -319,3 +319,19 @@ export const ROASTABLE_ITEMS: ItemId[] = ['leaf_green_tea_fresh', 'leaf_green_te
 export function getCropBySeed(seedId: ItemId): CropDef | undefined {
   return Object.values(CROPS).find((c) => c.seedId === seedId);
 }
+
+export function getQualityPriceMultiplier(quality: 1 | 2 | 3): number {
+  if (quality === 3) return 1.35;
+  if (quality === 2) return 1.15;
+  return 1.0;
+}
+
+export function getQualityLabel(quality: 1 | 2 | 3): string {
+  if (quality === 3) return 'Tuyệt hảo';
+  if (quality === 2) return 'Tốt';
+  return 'Thường';
+}
+
+export function getItemSellValue(itemId: ItemId, quality: 1 | 2 | 3): number {
+  return Math.round(ITEMS[itemId].sellPrice * getQualityPriceMultiplier(quality));
+}
