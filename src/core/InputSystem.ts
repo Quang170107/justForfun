@@ -1,5 +1,6 @@
 export type GameActionKey =
   | 'interact'
+  | 'canvasClick'
   | 'rotateLeft'
   | 'rotateRight'
   | 'inventory'
@@ -23,15 +24,57 @@ export type GameActionKey =
 export class InputSystem {
   private held = new Set<string>();
   private justPressed = new Set<GameActionKey>();
+  private canvas: HTMLCanvasElement | null = null;
+  private wheelSteps = 0;
+
+  public mouseNdc = { x: 0, y: 0 };
+  public mouseActive = false;
 
   constructor() {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     window.addEventListener('blur', this.onBlur);
+    window.addEventListener('wheel', this.onWheel, { passive: true });
   }
+
+  public attachCanvas(canvas: HTMLCanvasElement): void {
+    this.canvas = canvas;
+    canvas.addEventListener('mousemove', this.onMouseMove);
+    canvas.addEventListener('mousedown', this.onMouseDown);
+    canvas.addEventListener('mouseleave', this.onMouseLeave);
+  }
+
+  private updateMouseFromEvent(e: MouseEvent): void {
+    if (!this.canvas) return;
+    const rect = this.canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    this.mouseNdc.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+    this.mouseNdc.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+    this.mouseActive = true;
+  }
+
+  private onMouseMove = (e: MouseEvent): void => {
+    this.updateMouseFromEvent(e);
+  };
+
+  private onMouseDown = (e: MouseEvent): void => {
+    if (e.button !== 0) return;
+    this.updateMouseFromEvent(e);
+    this.justPressed.add('canvasClick');
+  };
+
+  private onMouseLeave = (): void => {
+    this.mouseActive = false;
+  };
+
+  private onWheel = (e: WheelEvent): void => {
+    if (Math.abs(e.deltaY) < 1) return;
+    this.wheelSteps += e.deltaY > 0 ? 1 : -1;
+  };
 
   private onBlur = (): void => {
     this.held.clear();
+    this.mouseActive = false;
   };
 
   private onKeyDown = (e: KeyboardEvent): void => {
@@ -41,6 +84,10 @@ export class InputSystem {
     }
     if (import.meta.env.DEV && ['F3', 'F5', 'F6', 'F7', 'F8', 'F9'].includes(code)) {
       e.preventDefault();
+    }
+
+    if (['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(code)) {
+      this.mouseActive = false;
     }
 
     if (!e.repeat) {
@@ -85,6 +132,12 @@ export class InputSystem {
     return { x, y };
   }
 
+  public consumeWheelSteps(): number {
+    const s = this.wheelSteps;
+    this.wheelSteps = 0;
+    return s;
+  }
+
   public consume(action: GameActionKey): boolean {
     if (this.justPressed.has(action)) {
       this.justPressed.delete(action);
@@ -95,11 +148,18 @@ export class InputSystem {
 
   public clearFrameActions(): void {
     this.justPressed.clear();
+    this.wheelSteps = 0;
   }
 
   public destroy(): void {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     window.removeEventListener('blur', this.onBlur);
+    window.removeEventListener('wheel', this.onWheel);
+    if (this.canvas) {
+      this.canvas.removeEventListener('mousemove', this.onMouseMove);
+      this.canvas.removeEventListener('mousedown', this.onMouseDown);
+      this.canvas.removeEventListener('mouseleave', this.onMouseLeave);
+    }
   }
 }

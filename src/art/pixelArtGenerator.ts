@@ -990,6 +990,63 @@ class PixelArtRegistry {
       }
       this.textures.set('prop_rug', makePixelTexture(c));
     }
+
+    // Tile Cursor (16x16) - Default Gold & Action Green
+    for (const [key, mainCol] of [
+      ['tile_cursor_default', PALETTE.amberGold],
+      ['tile_cursor_action', PALETTE.grassBright],
+    ] as const) {
+      const [c, ctx] = makeCanvas(16, 16);
+      // 4 crisp corner brackets with dark outline
+      for (const [cx, cy, dx, dy] of [
+        [0, 0, 1, 1],
+        [15, 0, -1, 1],
+        [0, 15, 1, -1],
+        [15, 15, -1, -1],
+      ] as const) {
+        for (let i = 0; i < 5; i++) {
+          px(ctx, cx + i * dx, cy, PALETTE.outlineDark, 1, 1);
+          px(ctx, cx, cy + i * dy, PALETTE.outlineDark, 1, 1);
+        }
+        for (let i = 1; i < 4; i++) {
+          px(ctx, cx + i * dx, cy + dy, mainCol, 1, 1);
+          px(ctx, cx + dx, cy + i * dy, mainCol, 1, 1);
+        }
+        px(ctx, cx + dx, cy + dy, PALETTE.whiteWarm, 1, 1);
+      }
+      this.textures.set(key, makePixelTexture(c));
+    }
+
+    // Tool Swing Overlays (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      for (let i = 3; i < 12; i++) {
+        px(ctx, i, 14 - i, PALETTE.outlineDark, 2, 2);
+        px(ctx, i, 13 - i, PALETTE.woodBright, 1, 1);
+      }
+      px(ctx, 9, 2, PALETTE.outlinePlum, 5, 4);
+      px(ctx, 10, 3, PALETTE.rockLight, 3, 2);
+      this.textures.set('swing_hoe', makePixelTexture(c));
+    }
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 6, 4, PALETTE.outlinePlum, 7, 6);
+      px(ctx, 7, 5, PALETTE.waterBlue, 5, 4);
+      px(ctx, 3, 6, PALETTE.waterLight, 3, 2);
+      px(ctx, 1, 9, PALETTE.waterLight, 2, 2);
+      px(ctx, 3, 11, PALETTE.waterBlue, 2, 2);
+      px(ctx, 0, 12, PALETTE.waterLight, 2, 2);
+      this.textures.set('swing_watering', makePixelTexture(c));
+    }
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 3, 6, PALETTE.outlineDark, 10, 6);
+      px(ctx, 4, 7, PALETTE.woodBright, 8, 4);
+      px(ctx, 5, 3, PALETTE.woodMid, 6, 3);
+      px(ctx, 6, 1, PALETTE.amberGold, 2, 2);
+      px(ctx, 10, 2, PALETTE.whiteWarm, 2, 2);
+      this.textures.set('swing_basket', makePixelTexture(c));
+    }
   }
 
   private buildCrops(): void {

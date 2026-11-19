@@ -11,6 +11,7 @@ import {
   SaveData,
   TeaSteepTime,
   TeaWaterTemp,
+  ToolId,
   UpgradesState,
 } from '../data/types';
 import { CustomerEntity } from '../entities/Customer';
@@ -85,6 +86,15 @@ export class Game {
   private readonly camRightVec = new THREE.Vector3();
   private readonly camUpVec = new THREE.Vector3();
   private readonly billboardTint = new THREE.Color('#ffffff');
+
+  private tileCursorMesh: THREE.Mesh;
+  private tileCursorMat: THREE.MeshBasicMaterial;
+  private readonly raycaster = new THREE.Raycaster();
+  private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  private readonly rayHitVec = new THREE.Vector3();
+  private readonly ndcVec = new THREE.Vector2();
+  private targetTileX = -2;
+  private targetTileZ = -1;
 
   private currentScale = 2;
   private lastTime = performance.now();
@@ -173,11 +183,24 @@ export class Game {
     this.relations = new RelationshipSystem(loaded.relations);
     this.shop = new ShopSystem(this.relations);
 
-    // 4. Entities
+    // 4. Entities & Tile Cursor
     this.player = new Player(loaded.playerPos.x, loaded.playerPos.z);
     this.camFollowX = this.player.x;
     this.camFollowZ = this.player.z;
     this.scene.add(this.player.group);
+
+    const cursorGeo = new THREE.PlaneGeometry(1, 1);
+    cursorGeo.rotateX(-Math.PI / 2);
+    this.tileCursorMat = new THREE.MeshBasicMaterial({
+      map: pixelArt.getTexture('tile_cursor_default'),
+      transparent: true,
+      depthWrite: false,
+    });
+    this.tileCursorMesh = new THREE.Mesh(cursorGeo, this.tileCursorMat);
+    this.tileCursorMesh.position.set(-2.5, 0.045, -1.5);
+    this.scene.add(this.tileCursorMesh);
+
+    this.input.attachCanvas(canvas);
 
     (Object.keys(NPCS) as NpcId[]).forEach((id) => {
       const npc = new NPCEntity(NPCS[id]);
@@ -282,7 +305,10 @@ export class Game {
       this.time.update(dt, () => this.triggerSleep(true));
       this.player.update(dt, this.input.getMoveAxis(), this.cameraYawStep, this.island, this.audio);
       this.updateCustomers(dt);
+      this.updateTargetTile(false);
       this.updateInteractionPrompt();
+    } else {
+      this.tileCursorMesh.visible = false;
     }
 
     const lighting = this.time.getLightingState();
@@ -366,15 +392,76 @@ export class Game {
   }
 
   private getDebugTargetTileInfo(): string {
-    const facing = this.player.getFacingPos(0.8);
-    const { gx, gy } = this.tiles.worldToGrid(facing.x, facing.z);
+    const { gx, gy } = this.tiles.worldToGrid(this.targetTileX + 0.5, this.targetTileZ + 0.5);
     if (!this.tiles.isPlotAccessible(gx, gy)) {
-      return `Ngoài đồi (${Math.floor(facing.x)}, ${Math.floor(facing.z)})`;
+      return `Ngoài đồi (${this.targetTileX}, ${this.targetTileZ})`;
     }
     const p = this.tiles.getPlot(gx, gy);
     if (!p) return `Đồi (${gx}, ${gy})`;
     const cropTxt = p.cropId ? `${p.cropId}[GĐ${p.stage}]` : p.tilled ? 'Đất cuốc' : 'Cỏ';
     return `Đồi (${gx}, ${gy}) • ${cropTxt}${p.watered ? ' (Ướt)' : ''}`;
+  }
+
+  private getMouseGroundTile(): { hx: number; hz: number } | null {
+    if (!this.input.mouseActive) return null;
+    this.ndcVec.set(this.input.mouseNdc.x, this.input.mouseNdc.y);
+    this.raycaster.setFromCamera(this.ndcVec, this.camera);
+    if (!this.raycaster.ray.intersectPlane(this.groundPlane, this.rayHitVec)) {
+      return null;
+    }
+    return {
+      hx: Math.floor(this.rayHitVec.x),
+      hz: Math.floor(this.rayHitVec.z),
+    };
+  }
+
+  private updateTargetTile(hidden: boolean): void {
+    if (hidden) {
+      this.tileCursorMesh.visible = false;
+      return;
+    }
+
+    const px = Math.floor(this.player.x);
+    const pz = Math.floor(this.player.z);
+    const facing = this.player.getFacingPos(0.85);
+    let tx = Math.floor(facing.x);
+    let tz = Math.floor(facing.z);
+
+    const mouseTile = this.getMouseGroundTile();
+    if (mouseTile && Math.abs(mouseTile.hx - px) <= 1 && Math.abs(mouseTile.hz - pz) <= 1) {
+      tx = mouseTile.hx;
+      tz = mouseTile.hz;
+    }
+
+    tx = Math.max(-this.island.halfWidth, Math.min(this.island.halfWidth - 1, tx));
+    tz = Math.max(-this.island.halfDepth, Math.min(this.island.halfDepth - 1, tz));
+
+    this.targetTileX = tx;
+    this.targetTileZ = tz;
+
+    this.tileCursorMesh.visible = true;
+    this.tileCursorMesh.position.set(tx + 0.5, 0.045, tz + 0.5);
+    const pulse = 0.96 + Math.sin(this.elapsed * 5) * 0.04;
+    this.tileCursorMesh.scale.set(pulse, pulse, 1);
+
+    const held = this.getHeldSlot();
+    const heldId = held?.itemId ?? null;
+    const { gx, gy } = this.tiles.worldToGrid(tx + 0.5, tz + 0.5);
+    let canAct = false;
+    if (this.tiles.isPlotAccessible(gx, gy)) {
+      const p = this.tiles.getPlot(gx, gy);
+      if (p) {
+        if (p.cropId && p.stage === 3) canAct = true;
+        else if (heldId === 'hoe' && !p.tilled) canAct = true;
+        else if (heldId === 'watering_can' && p.tilled) canAct = true;
+        else if (heldId?.startsWith('seed_') && p.tilled && !p.cropId) canAct = true;
+      }
+    }
+    const desiredTex = pixelArt.getTexture(canAct ? 'tile_cursor_action' : 'tile_cursor_default');
+    if (this.tileCursorMat.map !== desiredTex) {
+      this.tileCursorMat.map = desiredTex;
+      this.tileCursorMat.needsUpdate = true;
+    }
   }
 
   private handleGlobalInput(): void {
@@ -465,6 +552,24 @@ export class Game {
       if (this.input.consume(`hotbar${i}` as 'hotbar1')) {
         this.selectedHotbarIndex = i - 1;
       }
+    }
+
+    const wheelSteps = this.input.consumeWheelSteps();
+    if (wheelSteps !== 0) {
+      this.selectedHotbarIndex = (((this.selectedHotbarIndex + wheelSteps) % 9) + 9) % 9;
+    }
+
+    if (this.input.consume('canvasClick')) {
+      const px = Math.floor(this.player.x);
+      const pz = Math.floor(this.player.z);
+      const mouseTile = this.getMouseGroundTile();
+      if (mouseTile && Math.abs(mouseTile.hx - px) <= 1 && Math.abs(mouseTile.hz - pz) <= 1) {
+        this.targetTileX = mouseTile.hx;
+        this.targetTileZ = mouseTile.hz;
+        this.player.faceTowards(mouseTile.hx + 0.5, mouseTile.hz + 0.5);
+        this.handleInteractAction(mouseTile.hx + 0.5, mouseTile.hz + 0.5);
+      }
+      return;
     }
 
     if (this.input.consume('interact')) {
@@ -567,13 +672,26 @@ export class Game {
       return;
     }
 
-    // Kiểm tra ô đất trước mặt
-    const facing = this.player.getFacingPos(0.8);
-    const { gx, gy } = this.tiles.worldToGrid(facing.x, facing.z);
+    // Kiểm tra ô đất mục tiêu (trước mặt hoặc theo con trỏ chuột)
+    const { gx, gy } = this.tiles.worldToGrid(this.targetTileX + 0.5, this.targetTileZ + 0.5);
     if (this.tiles.isPlotAccessible(gx, gy)) {
       const plot = this.tiles.getPlot(gx, gy);
+      const held = this.getHeldSlot();
+      const heldId = held?.itemId ?? null;
       if (plot?.cropId && plot.stage === 3) {
         this.ui.hud.setPrompt('Thu hoạch cây chín');
+        return;
+      }
+      if (plot && !plot.tilled && heldId === 'hoe') {
+        this.ui.hud.setPrompt('Cuốc đất');
+        return;
+      }
+      if (plot && plot.tilled && !plot.cropId && heldId?.startsWith('seed_')) {
+        this.ui.hud.setPrompt(`Gieo ${ITEMS[heldId].name}`);
+        return;
+      }
+      if (plot && plot.tilled && !plot.watered && heldId === 'watering_can') {
+        this.ui.hud.setPrompt('Tưới nước');
         return;
       }
     }
@@ -581,7 +699,7 @@ export class Game {
     this.ui.hud.setPrompt(null);
   }
 
-  private handleInteractAction(): void {
+  private handleInteractAction(overrideX?: number, overrideZ?: number): void {
     // 1. Phục vụ / hỏi order khách ngồi bàn
     const cust = this.findNearestCustomer();
     if (cust) {
@@ -705,20 +823,23 @@ export class Game {
       }
     }
 
-    // 4. Hành động trồng trọt tại ô trước mặt (hoặc dưới chân)
+    // 4. Hành động trồng trọt & dùng công cụ tại ô mục tiêu (hoặc ô dưới chân)
+    if (this.player.isPerformingAction()) return;
     const held = this.getHeldSlot();
     const heldId = held ? held.itemId : null;
-    const facing = this.player.getFacingPos(0.8);
+    const targetX = overrideX ?? this.targetTileX + 0.5;
+    const targetZ = overrideZ ?? this.targetTileZ + 0.5;
+
     let acted = this.farming.tryFarmAction(
-      facing.x,
-      facing.z,
+      targetX,
+      targetZ,
       heldId,
       this.selectedHotbarIndex,
       this.upgrades.wateringCanLevel,
       { addItem: this.addItem, consumeAtSlot: this.consumeAtSlot },
       (msg) => this.ui.hud.showToast(msg)
     );
-    if (!acted) {
+    if (!acted && overrideX === undefined) {
       acted = this.farming.tryFarmAction(
         this.player.x,
         this.player.z,
@@ -729,8 +850,20 @@ export class Game {
         (msg) => this.ui.hud.showToast(msg)
       );
     }
-    if (acted) {
-      this.player.triggerToolAction();
+
+    const toolKind: ToolId | null =
+      heldId === 'hoe' || heldId === 'watering_can' || heldId === 'basket'
+        ? heldId
+        : acted
+          ? 'basket'
+          : null;
+
+    if (toolKind) {
+      this.player.triggerToolAction(toolKind);
+      if (!acted) {
+        if (toolKind === 'watering_can') this.audio.playWater();
+        else if (toolKind === 'hoe') this.audio.playHoe();
+      }
     }
   }
 

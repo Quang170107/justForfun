@@ -1,7 +1,7 @@
 # PROGRESS — Trà Quán Trên Mây
 
 ## Giai đoạn hiện tại
-Phase 2 — Thế giới & tileset (Xong, chờ xác nhận)
+Phase 3 — Nhân vật & điều khiển (Xong, chờ xác nhận)
 
 ## Lịch sử
 | Phase | Trạng thái | Ngày | Ghi chú |
@@ -9,6 +9,7 @@ Phase 2 — Thế giới & tileset (Xong, chờ xác nhận)
 | 0 | Xong | 2026-11-18 | Khởi tạo git, sửa `README.md` UTF-8, thêm Debug Overlay (`F3`) và phím debug dev (`F5`–`F9`), đối chiếu hệ thống `src/` với `GAME_BRIEF.md` và `ROADMAP.md` |
 | 1 | Xong | 2026-11-19 | Hoàn thiện Y-Billboard chuẩn 1:1 texel (`1/cos(40°)`), screen-space pixel snapping, camera lerp mượt, xoay camera 90° ~0.3s, đồng bộ hướng nhìn 4 góc, hàm tiện ích chung trong `pixelArtGenerator.ts` |
 | 2 | Xong | 2026-11-19 | Tách bản đồ `src/data/islandMap.ts`, auto-tile 4 hướng (đá, gỗ, đất trồng), vách đảo 2.5D có rễ/dây leo, mái ngói Á Đông xếp lớp ngang + cửa vào/ra Nhà ở & Quán trà làm mờ mái lộ nội thất, hàng rào tự nối 4 hướng, đá/chậu hoa/đèn đá, bỏ khối hộp vàng trơn hải đăng |
+| 3 | Xong | 2026-11-19 | Khớp animation bước chân theo quãng đường thực, chuẩn hóa 8 hướng + trượt dọc tường & lách góc, con trỏ ô (`tile cursor`), click chuột trong tầm 1 ô, lăn chuột đổi hotbar, animation công cụ 3 frame 4 hướng kèm khóa di chuyển và gợi ý ngữ cảnh `[E]` |
 
 ## Đánh giá hệ thống (cập nhật liên tục)
 | Hệ thống | Trạng thái | Ghi chú |
@@ -17,7 +18,7 @@ Phase 2 — Thế giới & tileset (Xong, chờ xác nhận)
 | Debug Overlay & Phím Debug (`F3`, `F5`–`F9`) | Có | Chỉ bật khi `import.meta.env.DEV`; hiển thị FPS, tọa độ, ô nhắm, giờ, thời tiết |
 | Render pixel 2.5D (`src/core/Game.ts`, `src/art/*`) | Có | RenderTarget `480×270` `NearestFilter`, scale bội số nguyên khi resize, `OrthographicCamera` 40° (1 ô = 16 px), camera lerp + screen-space pixel snap, xoay 90° mượt 0.3s, Y-billboard + bóng elip, helper tạo texture/billboard dùng chung |
 | Thế giới & Tileset (`src/world/*`, `src/data/islandMap.ts`) | Có | Bản đồ 2D tách dữ liệu, auto-tile rìa đá/gỗ/đất 4 hướng, vách đảo 2.5D + dây leo/rễ cây, biển mây 4 phía, Quán trà & Nhà ở có cửa vào/ra làm mờ mái lộ nội thất, Sạp hạt giống & Hải đăng kính pixel, hàng rào tự nối 4 hướng, đá/chậu hoa/đèn đá, va chạm kín toàn đảo |
-| Nhân vật & Điều khiển (`src/entities/Player.ts`, `src/core/InputSystem.ts`) | Một phần | Đã có sprite 16×32 4 hướng × 4 frame, idle 2 frame, action tool, di chuyển trượt trục X/Z; còn thiếu con trỏ ô (`tile cursor`), click chuột vào ô và lăn chuột đổi hotbar (Phase 3) |
+| Nhân vật & Điều khiển (`src/entities/Player.ts`, `src/core/InputSystem.ts`) | Có | Sprite 16×32 đi 4 hướng × 4 frame + idle 2 frame khớp quãng đường thực (không foot sliding), chuẩn hóa 8 hướng + trượt dọc tường/góc, con trỏ ô (`tile cursor`) hỗ trợ click chuột 1 ô, hotbar `1–9` + lăn chuột, animation công cụ 3 frame khóa di chuyển, gợi ý ngữ cảnh `[E]` |
 | Thời gian, Ngày đêm, Lưu game (`src/core/TimeSystem.ts`, `src/core/SaveSystem.ts`) | Một phần | Đã có đồng hồ 6:00–24:00 (bước 10 phút), tint màu theo giờ, quầng sáng đèn đêm, save `localStorage` có `version`; thiếu màn hình tiêu đề, fade + bảng tóm tắt cuối ngày, phạt nhẹ quá 24:00 (Phase 4) |
 | Trồng trọt (`src/systems/FarmingSystem.ts`, `src/world/Tiles.ts`) | Một phần | Đã có đủ 5 cây (4 giai đoạn), cuốc/gieo/tưới/thu hoạch, mưa tự tưới, particle; thiếu thu hoạch nhiều lần cho trà xanh và icon bay vào túi (Phase 5) |
 | Chế biến (`src/systems/ProcessingSystem.ts`, `src/ui/BrewingScreen.ts`) | Một phần | Đã có nong tre phơi 1 ngày và mini-game chảo sao với chất lượng ★–★★★; mini-game mới nhận chuột (chưa giữ phím Space) và cần hoàn thiện stack theo chất lượng (Phase 6) |
@@ -34,4 +35,4 @@ Phase 2 — Thế giới & tileset (Xong, chờ xác nhận)
 - Lưu ý trong `ShopSystem.ts`: bảng giá nâng cấp (`SHOP_UPGRADES`) hiện đang đặt trong `src/systems/ShopSystem.ts`, cần chuyển sang `src/data/` ở Phase 10 theo nguyên tắc tách dữ liệu khỏi logic.
 
 ## Câu hỏi cho người dùng
-- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 2, tôi sẽ chuyển sang **Giai đoạn 3 — Nhân vật & điều khiển**.
+- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 3, tôi sẽ chuyển sang **Giai đoạn 4 — Thời gian, ngày đêm, lưu game**.
