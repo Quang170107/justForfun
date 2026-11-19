@@ -171,4 +171,29 @@ export class HUD {
       div.remove();
     }, 2600);
   }
+
+  public spawnFlyingItem(iconKey: string, startX: number, startY: number): void {
+    const hotbarRect = this.hotbarSlotsEl.getBoundingClientRect();
+    const targetX = hotbarRect.left + hotbarRect.width * 0.5 - 16;
+    const targetY = hotbarRect.top + 8;
+
+    const img = document.createElement('img');
+    img.className = 'flying-item-icon';
+    img.src = pixelArt.getIconUrl(iconKey);
+    img.style.left = `${Math.round(startX - 16)}px`;
+    img.style.top = `${Math.round(startY - 16)}px`;
+    img.style.opacity = '1';
+    document.body.appendChild(img);
+
+    requestAnimationFrame(() => {
+      const dx = Math.round(targetX - (startX - 16));
+      const dy = Math.round(targetY - (startY - 16));
+      img.style.transform = `translate(${dx}px, ${dy}px) scale(0.85)`;
+      img.style.opacity = '0.2';
+    });
+
+    setTimeout(() => {
+      img.remove();
+    }, 540);
+  }
 }

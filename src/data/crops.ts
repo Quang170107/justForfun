@@ -8,8 +8,9 @@ export const CROPS: Record<CropId, CropDef> = {
     harvestId: 'leaf_green_tea_fresh',
     driedId: 'leaf_green_tea_dried',
     daysToGrow: 3,
+    regrowDays: 2,
     seedPrice: 20,
-    description: 'Búp trà non mọc trên đồi mây, vị thanh khiết dịu nhẹ.',
+    description: 'Búp trà non mọc trên đồi mây, thu hoạch nhiều lần (mọc lại sau 2 ngày).',
   },
   chrysanthemum: {
     id: 'chrysanthemum',
@@ -85,7 +86,7 @@ export const ITEMS: Record<ItemId, ItemDef> = {
   seed_green_tea: {
     id: 'seed_green_tea',
     name: 'Hạt Trà Xanh',
-    description: 'Trồng 3 ngày có tưới. Nguyên liệu cốt lõi của quán trà.',
+    description: 'Trồng 3 ngày có tưới, thu hoạch nhiều lần (mọc lại sau 2 ngày).',
     category: 'seed',
     cropId: 'green_tea',
     sellPrice: 10,

@@ -25,7 +25,8 @@ export class FarmingSystem {
     heldSlotIndex: number,
     wateringLevel: 1 | 2,
     invOps: InventoryOps,
-    notify: (msg: string) => void
+    notify: (msg: string) => void,
+    onHarvestVisual?: (harvestItemId: ItemId, wx: number, wz: number) => void
   ): boolean {
     const { gx, gy } = this.tiles.worldToGrid(targetX, targetZ);
     if (!this.tiles.isPlotAccessible(gx, gy)) return false;
@@ -36,20 +37,33 @@ export class FarmingSystem {
     const wx = FARM_ORIGIN_X + gx + 0.5;
     const wz = FARM_ORIGIN_Z + gy + 0.5;
 
-    // Nếu cây đã chín (giai đoạn 3), cho phép thu hoạch bằng giỏ hoặc bất kỳ tay nào không phải cuốc/bình
+    // Nếu cây đã chín (giai đoạn 3), thu hoạch bằng giỏ hoặc bất kỳ tay nào không phải cuốc/bình
     if (plot.cropId && plot.stage === 3 && heldItemId !== 'hoe' && heldItemId !== 'watering_can') {
       const crop = CROPS[plot.cropId];
       const roll = Math.random();
       const quality: 1 | 2 | 3 = roll > 0.8 ? 3 : roll > 0.4 ? 2 : 1;
       const yieldCount = crop.id === 'green_tea' ? 2 : 1;
+
       if (invOps.addItem(crop.harvestId, yieldCount, quality)) {
         this.audio.playHarvest();
-        this.weather.spawnBurst(wx, 0.4, wz, PALETTE.amberGold, 8);
-        plot.cropId = null;
-        plot.stage = 0;
-        plot.daysGrown = 0;
-        this.tiles.refreshPlotVisual(gx, gy);
-        notify(`Thu hoạch ${yieldCount} ${crop.name} (${'★'.repeat(quality)})!`);
+        this.weather.spawnBurst(wx, 0.45, wz, PALETTE.grassBright, 5);
+        this.weather.spawnBurst(wx, 0.55, wz, PALETTE.amberGold, 5);
+        onHarvestVisual?.(crop.harvestId, wx, wz);
+
+        if (crop.regrowDays) {
+          // Trà xanh thu hoạch nhiều lần: giữ nguyên gốc bụi lá GĐ2, mọc lại sau regrowDays ngày tưới
+          plot.cropId = crop.id;
+          plot.stage = 2;
+          plot.daysGrown = Math.max(0, crop.daysToGrow - crop.regrowDays);
+          this.tiles.refreshPlotVisual(gx, gy);
+          notify(`Thu hoạch ${yieldCount} ${crop.name} (${'★'.repeat(quality)})! Gốc trà sẽ mọc lại sau ${crop.regrowDays} ngày.`);
+        } else {
+          plot.cropId = null;
+          plot.stage = 0;
+          plot.daysGrown = 0;
+          this.tiles.refreshPlotVisual(gx, gy);
+          notify(`Thu hoạch ${yieldCount} ${crop.name} (${'★'.repeat(quality)})!`);
+        }
         return true;
       } else {
         notify('Túi đồ đã đầy!');
@@ -120,13 +134,14 @@ export class FarmingSystem {
         const crop = CROPS[plot.cropId];
         plot.daysGrown += 1;
         const ratio = plot.daysGrown / crop.daysToGrow;
-        if (ratio >= 1) plot.stage = 3;
-        else if (ratio >= 0.65) plot.stage = 2;
-        else if (ratio >= 0.3) plot.stage = 1;
-        else plot.stage = 0;
+        let nextStage: 0 | 1 | 2 | 3 = 0;
+        if (plot.daysGrown >= crop.daysToGrow) nextStage = 3;
+        else if (ratio >= 0.6) nextStage = 2;
+        else if (plot.daysGrown >= 1) nextStage = 1;
+        plot.stage = Math.max(plot.stage, nextStage) as 0 | 1 | 2 | 3;
       }
 
-      // Ngày mới đất khô đi, trừ khi trời mưa tự tưới
+      // Ngày mới đất khô đi, trừ khi trời mưa tự tưới (không tưới thì cây đứng yên, không chết)
       plot.watered = newWeatherIsRainy && plot.tilled;
       this.tiles.refreshPlotVisual(plot.gx, plot.gy);
     }

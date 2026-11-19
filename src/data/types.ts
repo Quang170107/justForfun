@@ -62,6 +62,7 @@ export interface CropDef {
   harvestId: ItemId;
   driedId: ItemId;
   daysToGrow: number; // Tổng số ngày tưới để đạt giai đoạn 3
+  regrowDays?: number; // Số ngày mọc lại sau khi thu hoạch (nếu thu nhiều lần)
   seedPrice: number;
   description: string;
 }

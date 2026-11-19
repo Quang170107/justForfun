@@ -1047,6 +1047,16 @@ class PixelArtRegistry {
       px(ctx, 10, 2, PALETTE.whiteWarm, 2, 2);
       this.textures.set('swing_basket', makePixelTexture(c));
     }
+
+    // Harvest ready pixel sparkle (8x8)
+    {
+      const [c, ctx] = makeCanvas(8, 8);
+      px(ctx, 3, 0, PALETTE.amberGold, 2, 8);
+      px(ctx, 0, 3, PALETTE.amberGold, 8, 2);
+      px(ctx, 2, 2, PALETTE.whiteWarm, 4, 4);
+      px(ctx, 3, 3, PALETTE.whiteWarm, 2, 2);
+      this.textures.set('sparkle_pixel', makePixelTexture(c));
+    }
   }
 
   private buildCrops(): void {

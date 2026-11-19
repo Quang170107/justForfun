@@ -7,6 +7,7 @@ interface PlotVisual {
   groundMesh: THREE.Mesh;
   cropGroup: THREE.Group;
   cropMat: THREE.MeshBasicMaterial;
+  sparkleSprite: THREE.Sprite;
   puddleMesh: THREE.Mesh;
 }
 
@@ -52,6 +53,19 @@ export class Tiles {
       cropHandle.group.visible = false;
       this.group.add(cropHandle.group);
 
+      const sparkleSprite = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: pixelArt.getTexture('sparkle_pixel'),
+          transparent: true,
+          opacity: 0.9,
+          depthWrite: false,
+        })
+      );
+      sparkleSprite.position.set(wx + 0.15, 1.5, wz + 0.1);
+      sparkleSprite.scale.set(0.45, 0.45, 1);
+      sparkleSprite.visible = false;
+      this.group.add(sparkleSprite);
+
       // Vũng nước nhỏ khi trời mưa
       const puddleGeo = new THREE.PlaneGeometry(0.5, 0.35);
       puddleGeo.rotateX(-Math.PI / 2);
@@ -70,6 +84,7 @@ export class Tiles {
         groundMesh,
         cropGroup: cropHandle.group,
         cropMat: cropHandle.material,
+        sparkleSprite,
         puddleMesh,
       });
     }
@@ -147,6 +162,7 @@ export class Tiles {
       groundMat.map = pixelArt.getTexture(`tile_grass_${(gx + gy) % 4}`);
       groundMat.needsUpdate = true;
       v.cropGroup.visible = false;
+      v.sparkleSprite.visible = false;
       return;
     }
 
@@ -162,8 +178,10 @@ export class Tiles {
       v.cropMat.map = pixelArt.getTexture(`crop_${p.cropId}_${p.stage}`);
       v.cropMat.needsUpdate = true;
       v.cropGroup.visible = true;
+      v.sparkleSprite.visible = p.stage === 3;
     } else {
       v.cropGroup.visible = false;
+      v.sparkleSprite.visible = false;
     }
   }
 
@@ -188,9 +206,20 @@ export class Tiles {
           v.cropGroup.position.x = FARM_ORIGIN_X + gx + 0.5 + sway;
           if (p.stage === 3) {
             v.cropGroup.position.y = Math.abs(Math.sin(elapsed * 3 + gx)) * 0.04;
+            const pulse = 0.35 + Math.abs(Math.sin(elapsed * 4.2 + gx + gy)) * 0.25;
+            v.sparkleSprite.visible = true;
+            v.sparkleSprite.scale.set(pulse, pulse, 1);
+            v.sparkleSprite.position.set(
+              FARM_ORIGIN_X + gx + 0.68,
+              1.45 + Math.sin(elapsed * 3.5 + gx) * 0.08,
+              FARM_ORIGIN_Z + gy + 0.55
+            );
           } else {
             v.cropGroup.position.y = 0;
+            v.sparkleSprite.visible = false;
           }
+        } else {
+          v.sparkleSprite.visible = false;
         }
 
         v.puddleMesh.visible = isRaining && (gx + gy) % 5 === 0 && !p.cropId;

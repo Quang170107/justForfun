@@ -459,6 +459,16 @@ body {
   animation: toastFade 2.6s forwards;
 }
 
+.flying-item-icon {
+  position: fixed;
+  width: 32px;
+  height: 32px;
+  pointer-events: none;
+  z-index: 30;
+  image-rendering: pixelated;
+  transition: transform 0.52s cubic-bezier(0.25, 0.8, 0.4, 1), opacity 0.52s ease;
+}
+
 @keyframes toastFade {
   0% {
     opacity: 0;

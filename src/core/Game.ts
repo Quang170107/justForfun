@@ -932,6 +932,14 @@ export class Game {
     const targetX = overrideX ?? this.targetTileX + 0.5;
     const targetZ = overrideZ ?? this.targetTileZ + 0.5;
 
+    const onHarvestVisual = (harvestItemId: ItemId, wx: number, wz: number) => {
+      const proj = new THREE.Vector3(wx, 0.9, wz).project(this.camera);
+      const rect = this.renderer.domElement.getBoundingClientRect();
+      const sx = rect.left + (proj.x * 0.5 + 0.5) * rect.width;
+      const sy = rect.top + (-proj.y * 0.5 + 0.5) * rect.height;
+      this.ui.hud.spawnFlyingItem(ITEMS[harvestItemId].iconKey, sx, sy);
+    };
+
     let acted = this.farming.tryFarmAction(
       targetX,
       targetZ,
@@ -939,7 +947,8 @@ export class Game {
       this.selectedHotbarIndex,
       this.upgrades.wateringCanLevel,
       { addItem: this.addItem, consumeAtSlot: this.consumeAtSlot },
-      (msg) => this.ui.hud.showToast(msg)
+      (msg) => this.ui.hud.showToast(msg),
+      onHarvestVisual
     );
     if (!acted && overrideX === undefined) {
       acted = this.farming.tryFarmAction(
@@ -949,7 +958,8 @@ export class Game {
         this.selectedHotbarIndex,
         this.upgrades.wateringCanLevel,
         { addItem: this.addItem, consumeAtSlot: this.consumeAtSlot },
-        (msg) => this.ui.hud.showToast(msg)
+        (msg) => this.ui.hud.showToast(msg),
+        onHarvestVisual
       );
     }
 
