@@ -79,6 +79,18 @@ export class Tiles {
     }
   }
 
+  public loadPlots(plots: TilePlotState[], expandedUnlocked: boolean): void {
+    this.expandedUnlocked = expandedUnlocked;
+    for (const p of plots) {
+      this.plotMap.set(this.key(p.gx, p.gy), { ...p });
+    }
+    for (let gy = 0; gy < FARM_ROWS; gy++) {
+      for (let gx = 0; gx < FARM_MAX_COLS; gx++) {
+        this.refreshPlotSingle(gx, gy);
+      }
+    }
+  }
+
   public setExpandedUnlocked(val: boolean): void {
     this.expandedUnlocked = val;
     for (let gy = 0; gy < FARM_ROWS; gy++) {

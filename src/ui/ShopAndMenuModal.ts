@@ -1,7 +1,7 @@
 import { pixelArt } from '../art/pixelArtGenerator';
 import { ITEMS } from '../data/crops';
 import { GRANDMA_LETTER_LINES } from '../data/dialogues';
-import { InventorySlot, ItemId, UpgradesState } from '../data/types';
+import { DailySummaryStats, InventorySlot, ItemId, UpgradesState } from '../data/types';
 import { SHOP_SEEDS, SHOP_UPGRADES } from '../systems/ShopSystem';
 
 export class ShopAndMenuModal {
@@ -133,6 +133,8 @@ export class ShopAndMenuModal {
     bgmEnabled: boolean,
     onSaveNow: () => void,
     onToggleAudio: () => void,
+    onOpenSettings: () => void,
+    onReturnTitle: () => void,
     onResetSave: () => void,
     onClose: () => void
   ): void {
@@ -145,20 +147,118 @@ export class ShopAndMenuModal {
         <strong>🎮 Hướng Dẫn Nhanh:</strong>
         <div style="font-size:14px;line-height:1.5;">
           • <b>WASD / Mũi tên:</b> Di chuyển quanh đảo<br/>
-          • <b>E / Space:</b> Dùng công cụ trên đồi trà, phơi/sao lá, pha trà, phục vụ khách hoặc nói chuyện NPC<br/>
-          • <b>1–9:</b> Chọn ô Hotbar (1: Cuốc, 2: Bình tưới, 3: Giỏ/Tay không, 4+: Hạt giống & Trà)<br/>
+          • <b>E / Space / Click:</b> Dùng công cụ, phơi/sao lá, pha trà, phục vụ khách hoặc nói chuyện NPC<br/>
+          • <b>1–9 / Cuộn chuột:</b> Chọn ô Hotbar (1: Cuốc, 2: Bình tưới, 3: Giỏ, 4+: Hạt & Trà)<br/>
           • <b>Q / R:</b> Xoay góc nhìn camera 90° &nbsp;|&nbsp; <b>Tab / I:</b> Mở Túi đồ & Sổ Công Thức
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
         <button id="btn-menu-save" class="pixel-btn primary">💾 Lưu Game Ngay</button>
         <button id="btn-menu-audio" class="pixel-btn">${bgmEnabled ? '🔊 Nhạc nền: BẬT' : '🔇 Nhạc nền: TẮT'}</button>
+        <button id="btn-menu-settings" class="pixel-btn">🎛️ Cài Đặt</button>
+        <button id="btn-menu-title" class="pixel-btn">🏠 Màn Hình Tiêu Đề</button>
         <button id="btn-menu-reset" class="pixel-btn" style="background:#f28b82;">🗑️ Chơi Lại Từ Đầu</button>
       </div>
     `;
     modalBox.querySelector('#btn-menu-close')!.addEventListener('click', onClose);
     modalBox.querySelector('#btn-menu-save')!.addEventListener('click', onSaveNow);
     modalBox.querySelector('#btn-menu-audio')!.addEventListener('click', onToggleAudio);
+    modalBox.querySelector('#btn-menu-settings')!.addEventListener('click', onOpenSettings);
+    modalBox.querySelector('#btn-menu-title')!.addEventListener('click', onReturnTitle);
     modalBox.querySelector('#btn-menu-reset')!.addEventListener('click', onResetSave);
+  }
+
+  public renderSettingsModal(
+    modalBox: HTMLElement,
+    bgmEnabled: boolean,
+    sfxEnabled: boolean,
+    onToggleBgm: () => void,
+    onToggleSfx: () => void,
+    onToggleFullscreen: () => void,
+    onClose: () => void
+  ): void {
+    modalBox.innerHTML = `
+      <div class="modal-header">
+        <h2>🎛️ Cài Đặt</h2>
+        <button id="btn-settings-close" class="pixel-btn small">Đóng</button>
+      </div>
+      <div class="card-box" style="gap:10px;">
+        <div class="summary-row">
+          <span>🎵 Nhạc nền lo-fi</span>
+          <button id="btn-set-bgm" class="pixel-btn small ${bgmEnabled ? 'primary' : ''}">${bgmEnabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}</button>
+        </div>
+        <div class="summary-row">
+          <span>🔔 Hiệu ứng âm thanh (SFX)</span>
+          <button id="btn-set-sfx" class="pixel-btn small ${sfxEnabled ? 'primary' : ''}">${sfxEnabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}</button>
+        </div>
+        <div class="summary-row" style="border-bottom:none;">
+          <span>🖥️ Toàn màn hình</span>
+          <button id="btn-set-fs" class="pixel-btn small">${document.fullscreenElement ? 'Thoát Fullscreen' : 'Bật Fullscreen'}</button>
+        </div>
+      </div>
+    `;
+    modalBox.querySelector('#btn-settings-close')!.addEventListener('click', onClose);
+    modalBox.querySelector('#btn-set-bgm')!.addEventListener('click', onToggleBgm);
+    modalBox.querySelector('#btn-set-sfx')!.addEventListener('click', onToggleSfx);
+    modalBox.querySelector('#btn-set-fs')!.addEventListener('click', onToggleFullscreen);
+  }
+
+  public renderDaySummary(
+    modalBox: HTMLElement,
+    stats: DailySummaryStats,
+    currentMoney: number,
+    onContinue: () => void
+  ): void {
+    const netTotal = stats.teaIncome + stats.salesIncome - stats.penaltyMoney;
+    const weatherText =
+      stats.nextWeather === 'sunny'
+        ? '☀️ Nắng ấm'
+        : stats.nextWeather === 'rainy'
+          ? '🌧️ Mưa nhẹ (tự tưới toàn đồi trà)'
+          : '🌫️ Sương mù mây dâng';
+
+    const recipeLine =
+      stats.newRecipes.length > 0
+        ? stats.newRecipes.join(', ')
+        : 'Chưa mở công thức mới hôm nay';
+
+    const heartLine =
+      stats.heartGains.length > 0
+        ? stats.heartGains.map((h) => `${h.name} (+${h.gained}♥ → ${h.total}/10)`).join(', ')
+        : 'Chưa tăng mốc tim nào hôm nay';
+
+    modalBox.innerHTML = `
+      <div class="modal-header">
+        <h2>🌙 Tổng Kết Cuối Ngày ${stats.dayFinished} (${stats.season})</h2>
+      </div>
+      ${
+        stats.passedOut
+          ? `<div class="card-box" style="background:#f28b82;margin-bottom:10px;">
+               <strong>😵 Bạn đã thức quá 24:00 và thiếp đi ngoài đảo!</strong>
+               <span>Ông Đăng đưa bạn về nhà nghỉ, thu phí dầu đèn bão nhẹ (-10%, tối đa 50 Xu Mây): <b>-${stats.penaltyMoney} Xu Mây</b>.</span>
+             </div>`
+          : `<div class="card-box" style="margin-bottom:10px;">
+               <strong>🛏️ Một giấc ngủ ngon lành trên giường ấm!</strong>
+               <span>Tiến trình đã được lưu an toàn vào bộ nhớ trình duyệt.</span>
+             </div>`
+      }
+      <div class="card-box" style="margin-bottom:12px;">
+        <div class="summary-row"><span>🍵 Thu nhập phục vụ trà:</span><b>+${stats.teaIncome} Xu Mây</b></div>
+        <div class="summary-row"><span>🧺 Thu nhập bán nông sản/khác:</span><b>+${stats.salesIncome} Xu Mây</b></div>
+        ${
+          stats.penaltyMoney > 0
+            ? `<div class="summary-row" style="color:#8e2f2f;"><span>🏮 Phí ngủ gục quá 24:00:</span><b>-${stats.penaltyMoney} Xu Mây</b></div>`
+            : ''
+        }
+        <div class="summary-row"><span>📖 Công thức trà mới:</span><b>${recipeLine}</b></div>
+        <div class="summary-row"><span>💛 Tình cảm tăng:</span><b>${heartLine}</b></div>
+        <div class="summary-row"><span>🌤️ Thời tiết ngày ${stats.nextDay}:</span><b>${weatherText}</b></div>
+        <div class="summary-row total"><span>🪙 Tổng kết ngày (${netTotal >= 0 ? `+${netTotal}` : netTotal}) • Số dư hiện tại:</span><b>${currentMoney} Xu Mây</b></div>
+      </div>
+      <div style="text-align:right;">
+        <button id="btn-summary-next" class="pixel-btn primary">🌅 Chào Ngày Mới (Ngày ${stats.nextDay})</button>
+      </div>
+    `;
+    modalBox.querySelector('#btn-summary-next')!.addEventListener('click', onContinue);
   }
 }

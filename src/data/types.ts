@@ -150,8 +150,22 @@ export interface UpgradesState {
   decorPottedPlants: boolean;
 }
 
+export interface DailySummaryStats {
+  dayFinished: number;
+  nextDay: number;
+  season: 'Xuân';
+  passedOut: boolean;
+  penaltyMoney: number;
+  teaIncome: number;
+  salesIncome: number;
+  newRecipes: string[];
+  heartGains: { name: string; gained: number; total: number }[];
+  nextWeather: WeatherType;
+}
+
 export interface SaveData {
-  version: number;
+  saveVersion: number;
+  version?: number;
   day: number;
   season: 'Xuân';
   timeMinutes: number; // 360 (6:00) -> 1440 (24:00)

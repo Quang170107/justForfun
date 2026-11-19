@@ -352,8 +352,12 @@ export class Buildings {
       });
       lan.group.position.set(lx, 0, tz + d / 2 + 0.35);
       this.group.add(lan.group);
-      this.addNightGlow(lx, 1.35, tz + d / 2 + 0.4, 2.3);
+      this.addNightGlow(lx, 1.35, tz + d / 2 + 0.4, 2.5);
     }
+
+    // Quầng sáng ấm hắt qua 2 ô cửa giấy shoji mặt tiền Quán Trà ban đêm
+    this.addNightGlow(tx - 2.1, 1.15, tz + d / 2 + 0.12, 1.85);
+    this.addNightGlow(tx + 2.1, 1.15, tz + d / 2 + 0.12, 1.85);
 
     // Colliders tường Quán Trà (chừa cửa 2.0 ở giữa)
     island.addCollider({ minX: tx - w / 2, maxX: tx + w / 2, minZ: tz - d / 2, maxZ: tz - d / 2 + 0.25 });
@@ -715,7 +719,7 @@ export class Buildings {
       const sp = this.nightGlows[i];
       const mat = sp.material as THREE.SpriteMaterial;
       const flicker = 0.88 + Math.sin(elapsed * 4.5 + i) * 0.12;
-      mat.opacity = nightFactor * 0.82 * flicker;
+      mat.opacity = nightFactor * 0.92 * flicker;
     }
 
     const beamMat = this.beaconBeam.material as THREE.MeshBasicMaterial;

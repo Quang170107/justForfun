@@ -16,13 +16,31 @@ export class UIManager {
 
   public readonly modalOverlay = document.getElementById('modal-overlay')!;
   public readonly modalBox = document.getElementById('modal-box')!;
+  private readonly hudLayer = document.getElementById('hud-layer')!;
+  private readonly titleScreenEl = document.getElementById('title-screen')!;
+  private readonly titleSaveMetaEl = document.getElementById('title-save-meta')!;
+  private readonly titleContinueBtn = document.getElementById('btn-title-continue') as HTMLButtonElement;
+  private readonly titleNewBtn = document.getElementById('btn-title-new') as HTMLButtonElement;
+  private readonly titleSettingsBtn = document.getElementById('btn-title-settings') as HTMLButtonElement;
+  private readonly sleepFadeEl = document.getElementById('sleep-fade-overlay')!;
+
   private tooltipEl = document.getElementById('item-tooltip')!;
   private tooltipTitle = document.getElementById('tooltip-title')!;
   private tooltipQuality = document.getElementById('tooltip-quality')!;
   private tooltipDesc = document.getElementById('tooltip-desc')!;
 
+  public isTitleScreenOpen = false;
   public isModalOpen = false;
-  public activeModalKind: 'none' | 'inventory' | 'brewing' | 'roast' | 'shop' | 'menu' | 'letter' = 'none';
+  public activeModalKind:
+    | 'none'
+    | 'inventory'
+    | 'brewing'
+    | 'roast'
+    | 'shop'
+    | 'menu'
+    | 'settings'
+    | 'day_summary'
+    | 'letter' = 'none';
 
   constructor(
     audio: AudioSystem,
@@ -42,10 +60,63 @@ export class UIManager {
     this.shopMenuModal = new ShopAndMenuModal();
 
     this.modalOverlay.addEventListener('click', (e) => {
-      if (e.target === this.modalOverlay && this.activeModalKind !== 'letter') {
+      if (
+        e.target === this.modalOverlay &&
+        this.activeModalKind !== 'letter' &&
+        this.activeModalKind !== 'day_summary'
+      ) {
         this.closeModal();
       }
     });
+  }
+
+  public bindTitleCallbacks(
+    onContinue: () => void,
+    onNewGame: () => void,
+    onSettings: () => void
+  ): void {
+    this.titleContinueBtn.onclick = onContinue;
+    this.titleNewBtn.onclick = onNewGame;
+    this.titleSettingsBtn.onclick = onSettings;
+  }
+
+  public showTitleScreen(
+    meta: { day: number; season: string; money: number; saveVersion: number } | null
+  ): void {
+    this.isTitleScreenOpen = true;
+    this.closeModal();
+    this.dialogue.close();
+    this.titleScreenEl.classList.remove('hidden');
+    this.hudLayer.classList.add('hidden');
+    if (meta) {
+      this.titleContinueBtn.disabled = false;
+      this.titleSaveMetaEl.textContent = `Bản lưu gần nhất: ${meta.season} • Ngày ${meta.day} • ${meta.money} Xu Mây (v${meta.saveVersion})`;
+    } else {
+      this.titleContinueBtn.disabled = true;
+      this.titleSaveMetaEl.textContent = 'Chưa có bản lưu — hãy bấm "Chơi Mới" để bắt đầu!';
+    }
+  }
+
+  public hideTitleScreen(): void {
+    this.isTitleScreenOpen = false;
+    this.titleScreenEl.classList.add('hidden');
+    this.hudLayer.classList.remove('hidden');
+  }
+
+  public setSleepFade(dark: boolean): void {
+    if (dark) {
+      this.sleepFadeEl.classList.remove('hidden');
+      // Force reflow để transition opacity chạy mượt
+      void this.sleepFadeEl.offsetWidth;
+      this.sleepFadeEl.classList.add('active');
+    } else {
+      this.sleepFadeEl.classList.remove('active');
+      setTimeout(() => {
+        if (!this.sleepFadeEl.classList.contains('active')) {
+          this.sleepFadeEl.classList.add('hidden');
+        }
+      }, 460);
+    }
   }
 
   public showTooltip(slot: InventorySlot, clientX: number, clientY: number): void {
@@ -79,6 +150,6 @@ export class UIManager {
   }
 
   public isBlockingGameplay(): boolean {
-    return this.isModalOpen || this.dialogue.isOpen;
+    return this.isTitleScreenOpen || this.isModalOpen || this.dialogue.isOpen;
   }
 }

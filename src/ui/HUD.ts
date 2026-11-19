@@ -63,7 +63,7 @@ export class HUD {
 
     // Phủ lớp tint ngày đêm toàn màn hình kiểu Stardew
     this.daylightTintEl.style.backgroundColor = `#${tintHex}`;
-    this.daylightTintEl.style.opacity = String(0.18 + nightFactor * 0.48);
+    this.daylightTintEl.style.opacity = String(0.08 + nightFactor * 0.34);
   }
 
   public setLocation(label: string): void {

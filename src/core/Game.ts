@@ -4,6 +4,7 @@ import { CAMERA_ELEVATION_RAD, PIXELS_PER_UNIT, pixelArt } from '../art/pixelArt
 import { DRYING_OUTPUT_MAP, ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import {
+  DailySummaryStats,
   InventorySlot,
   ItemId,
   MemoryCutscene,
@@ -30,7 +31,7 @@ import { Island } from '../world/Island';
 import { Tiles } from '../world/Tiles';
 import { AudioSystem } from './AudioSystem';
 import { InputSystem } from './InputSystem';
-import { createDefaultSave, SaveSystem } from './SaveSystem';
+import { createDefaultSave, CURRENT_SAVE_VERSION, SaveSystem } from './SaveSystem';
 import { TimeSystem } from './TimeSystem';
 
 const BASE_W = 480;
@@ -105,6 +106,11 @@ export class Game {
   private fpsFrames = 0;
   private fpsAccum = 0;
   private currentFps = 60;
+
+  private dailyTeaIncome = 0;
+  private dailySalesIncome = 0;
+  private dailyNewRecipes: string[] = [];
+  private dayStartHearts: Record<NpcId, number> = { may: 0, co_lu: 0, ong_dang: 0, be_suong: 0 };
 
   constructor(canvas: HTMLCanvasElement) {
     pixelArt.init();
@@ -222,9 +228,86 @@ export class Game {
     window.addEventListener('pointerdown', () => this.audio.unlockAndStartBgm(), { once: true });
     this.handleResize();
 
+    this.snapshotDayStartHearts();
+    this.ui.bindTitleCallbacks(
+      () => this.startFromSave(),
+      () => this.startNewGame(),
+      () => this.openSettingsModal()
+    );
+    this.openTitleScreen();
+  }
+
+  private openTitleScreen(): void {
+    this.ui.showTitleScreen(this.saveSystem.getSaveMeta());
+  }
+
+  private startFromSave(): void {
+    const saved = this.saveSystem.load() ?? createDefaultSave();
+    this.applySaveData(saved);
+    this.ui.hideTitleScreen();
+    this.audio.unlockAndStartBgm();
     if (!this.introRead) {
       this.openGrandmaLetter();
     }
+  }
+
+  private startNewGame(): void {
+    const fresh = createDefaultSave();
+    this.saveSystem.save(fresh);
+    this.applySaveData(fresh);
+    this.ui.hideTitleScreen();
+    this.audio.unlockAndStartBgm();
+    this.openGrandmaLetter();
+  }
+
+  private applySaveData(data: SaveData): void {
+    for (const c of this.customers) {
+      this.scene.remove(c.group);
+    }
+    this.customers = [];
+    for (const n of this.npcs.values()) {
+      n.hiddenDuringCafe = false;
+    }
+
+    this.money = data.money;
+    this.inventory = data.inventory.map((s) => (s ? { ...s } : null));
+    this.selectedHotbarIndex = data.selectedHotbarIndex;
+    this.upgrades = { ...data.upgrades };
+    this.introRead = data.introRead;
+    this.time.day = data.day;
+    this.time.season = data.season;
+    this.time.timeMinutes = data.timeMinutes;
+    this.weather.currentWeather = data.weather;
+
+    this.tiles.loadPlots(data.plots, this.upgrades.expandedFarmUnlocked);
+    this.buildings.applyUpgrades(this.upgrades);
+    this.processing = new ProcessingSystem(data.dryingRack);
+    this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
+    this.brewing = new BrewingSystem(data.unlockedRecipes);
+    this.relations = new RelationshipSystem(data.relations);
+    this.shop = new ShopSystem(this.relations);
+
+    this.player.x = data.playerPos.x;
+    this.player.z = data.playerPos.z;
+    this.player.direction = 'down';
+    this.camFollowX = this.player.x;
+    this.camFollowZ = this.player.z;
+    this.player.syncSnappedPosition();
+
+    this.resetDailySummaryTrackers();
+  }
+
+  private snapshotDayStartHearts(): void {
+    (Object.keys(NPCS) as NpcId[]).forEach((id) => {
+      this.dayStartHearts[id] = this.relations.getHearts(id);
+    });
+  }
+
+  private resetDailySummaryTrackers(): void {
+    this.dailyTeaIncome = 0;
+    this.dailySalesIncome = 0;
+    this.dailyNewRecipes = [];
+    this.snapshotDayStartHearts();
   }
 
   private handleResize = (): void => {
@@ -363,8 +446,13 @@ export class Game {
     }
 
     const followAlpha = 1 - Math.exp(-12 * dt);
-    this.camFollowX = THREE.MathUtils.lerp(this.camFollowX, this.player.x, followAlpha);
-    this.camFollowZ = THREE.MathUtils.lerp(this.camFollowZ, this.player.z, followAlpha);
+    if (this.ui.isTitleScreenOpen) {
+      this.camFollowX = Math.sin(this.elapsed * 0.16) * 4.5;
+      this.camFollowZ = -0.8;
+    } else {
+      this.camFollowX = THREE.MathUtils.lerp(this.camFollowX, this.player.x, followAlpha);
+      this.camFollowZ = THREE.MathUtils.lerp(this.camFollowZ, this.player.z, followAlpha);
+    }
 
     // Đồng bộ hướng hiển thị billboard nhân vật/NPC/khách theo góc camera
     this.player.applyCameraRelativeFrame(this.cameraYawStep);
@@ -465,13 +553,14 @@ export class Game {
   }
 
   private handleGlobalInput(): void {
-    if (import.meta.env.DEV) {
+    if (import.meta.env.DEV && !this.ui.isTitleScreenOpen && !this.isSleepingTransition) {
       if (this.input.consume('debugToggle')) {
         this.debugVisible = !this.debugVisible;
       }
       if (this.input.consume('debugPlusHour')) {
         if (this.time.timeMinutes + 60 >= 1440) {
-          this.triggerSleep(false);
+          this.time.timeMinutes = 1440;
+          this.triggerSleep(true);
         } else {
           this.time.advanceMinutes(60);
           this.ui.hud.showToast(`⏩ Debug: ${this.time.getFormattedTime()}`);
@@ -513,15 +602,27 @@ export class Game {
       }
     }
     if (this.input.consume('escape')) {
+      if (this.ui.isTitleScreenOpen) {
+        if (this.ui.isModalOpen && this.ui.activeModalKind === 'settings') {
+          this.ui.closeModal();
+        }
+        return;
+      }
       if (this.ui.dialogue.isOpen) {
         this.ui.dialogue.close();
-      } else if (this.ui.isModalOpen && this.ui.activeModalKind !== 'letter') {
+      } else if (
+        this.ui.isModalOpen &&
+        this.ui.activeModalKind !== 'letter' &&
+        this.ui.activeModalKind !== 'day_summary'
+      ) {
         this.ui.closeModal();
-      } else if (!this.ui.isModalOpen) {
+      } else if (!this.ui.isModalOpen && !this.isSleepingTransition) {
         this.openPauseMenu();
       }
       return;
     }
+
+    if (this.ui.isTitleScreenOpen || this.isSleepingTransition) return;
 
     if (this.ui.dialogue.isOpen) {
       if (this.input.consume('interact')) {
@@ -711,6 +812,7 @@ export class Game {
         this.consumeAtSlot(this.selectedHotbarIndex, 1);
         const res = this.shop.serveCustomer(cust.data, teaId, quality);
         this.money += res.moneyEarned;
+        this.dailyTeaIncome += res.moneyEarned;
         this.audio.playCoin();
         this.weather.spawnBurst(cust.x, 1.5, cust.z, PALETTE.amberGold, 10);
         this.ui.hud.showToast(res.message);
@@ -978,6 +1080,9 @@ export class Game {
         this.time.advanceMinutes(15);
         this.audio.playPourTea();
         const teaName = ITEMS[result.itemId].name;
+        if (result.newlyUnlocked) {
+          this.dailyNewRecipes.push(teaName);
+        }
         this.ui.hud.showToast(
           result.newlyUnlocked
             ? `📖 Công thức mới: ${teaName} (${'★'.repeat(result.quality)})!`
@@ -1047,9 +1152,38 @@ export class Game {
           const val = Math.round(base * (s.quality === 3 ? 1.3 : s.quality === 2 ? 1.15 : 1));
           this.consumeAtSlot(slotIdx, 1);
           this.money += val;
+          this.dailySalesIncome += val;
           this.audio.playCoin();
           this.ui.hud.showToast(`+${val} Xu Mây`);
           rerender();
+        },
+        () => this.ui.closeModal()
+      );
+    rerender();
+  }
+
+  private openSettingsModal(): void {
+    this.ui.openModal('settings');
+    const rerender = () =>
+      this.ui.shopMenuModal.renderSettingsModal(
+        this.ui.modalBox,
+        this.audio.bgmEnabled,
+        this.audio.sfxEnabled,
+        () => {
+          this.audio.bgmEnabled = !this.audio.bgmEnabled;
+          rerender();
+        },
+        () => {
+          this.audio.sfxEnabled = !this.audio.sfxEnabled;
+          rerender();
+        },
+        () => {
+          if (!document.fullscreenElement) {
+            void document.documentElement.requestFullscreen?.();
+          } else {
+            void document.exitFullscreen?.();
+          }
+          setTimeout(rerender, 80);
         },
         () => this.ui.closeModal()
       );
@@ -1070,6 +1204,11 @@ export class Game {
           this.audio.bgmEnabled = !this.audio.bgmEnabled;
           rerender();
         },
+        () => this.openSettingsModal(),
+        () => {
+          this.persistGame(false);
+          this.openTitleScreen();
+        },
         () => {
           this.saveSystem.clear();
           window.location.reload();
@@ -1083,48 +1222,88 @@ export class Game {
   private triggerSleep(passedOut: boolean): void {
     if (this.isSleepingTransition) return;
     this.isSleepingTransition = true;
-
-    // Dọn khách còn sót về nghỉ
-    for (const c of this.customers) {
-      this.scene.remove(c.group);
-    }
-    this.customers = [];
-    for (const n of this.npcs.values()) {
-      n.hiddenDuringCafe = false;
-    }
-
-    this.time.startNewMorning();
-    const newWeather = this.weather.rollWeatherForNewDay();
-    const isRain = newWeather === 'rainy';
-
-    this.farming.onNewDay(isRain);
-    this.processing.onNewDay();
-    this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
-    this.relations.onNewDay();
-    this.shop.onNewDay();
-
-    this.player.x = -2;
-    this.player.z = -2.2;
-    this.camFollowX = this.player.x;
-    this.camFollowZ = this.player.z;
-    this.player.syncSnappedPosition();
-
-    this.persistGame(false);
-    this.audio.playChime();
-
-    const weatherText = this.weather.getWeatherLabel();
-    const rainNote = isRain ? ' Trời mưa nhẹ đã tự tưới hết đồi trà!' : '';
-    const prefix = passedOut ? 'Đã quá 24:00 nên bạn thiếp đi... ' : '';
-    this.ui.hud.showToast(`🌅 ${prefix}Ngày ${this.time.day} (Xuân) • ${weatherText}.${rainNote}`);
+    this.ui.closeModal();
+    this.ui.dialogue.close();
+    this.ui.setSleepFade(true);
 
     setTimeout(() => {
-      this.isSleepingTransition = false;
-    }, 500);
+      // Dọn khách còn sót về nghỉ
+      for (const c of this.customers) {
+        this.scene.remove(c.group);
+      }
+      this.customers = [];
+      for (const n of this.npcs.values()) {
+        n.hiddenDuringCafe = false;
+      }
+
+      const dayFinished = this.time.day;
+      const seasonFinished = this.time.season;
+      const penaltyMoney = passedOut ? Math.min(50, Math.floor(this.money * 0.1)) : 0;
+      if (penaltyMoney > 0) {
+        this.money = Math.max(0, this.money - penaltyMoney);
+      }
+
+      const heartGains: { name: string; gained: number; total: number }[] = [];
+      (Object.keys(NPCS) as NpcId[]).forEach((id) => {
+        const nowH = this.relations.getHearts(id);
+        const diff = nowH - (this.dayStartHearts[id] ?? nowH);
+        if (diff > 0) {
+          heartGains.push({ name: NPCS[id].name, gained: diff, total: nowH });
+        }
+      });
+
+      this.time.startNewMorning();
+      const newWeather = this.weather.rollWeatherForNewDay();
+      const isRain = newWeather === 'rainy';
+
+      this.farming.onNewDay(isRain);
+      this.processing.onNewDay();
+      this.buildings.setDryingRackHasLeaves(this.processing.hasActiveItems());
+      this.relations.onNewDay();
+      this.shop.onNewDay();
+
+      // Đặt người chơi cạnh giường trong Nhà Ở
+      this.player.x = -2.2;
+      this.player.z = -4.6;
+      this.player.direction = 'down';
+      this.camFollowX = this.player.x;
+      this.camFollowZ = this.player.z;
+      this.player.syncSnappedPosition();
+
+      this.persistGame(false);
+
+      const summaryStats: DailySummaryStats = {
+        dayFinished,
+        nextDay: this.time.day,
+        season: seasonFinished,
+        passedOut,
+        penaltyMoney,
+        teaIncome: this.dailyTeaIncome,
+        salesIncome: this.dailySalesIncome,
+        newRecipes: [...this.dailyNewRecipes],
+        heartGains,
+        nextWeather: newWeather,
+      };
+
+      this.ui.openModal('day_summary');
+      this.ui.shopMenuModal.renderDaySummary(this.ui.modalBox, summaryStats, this.money, () => {
+        this.ui.closeModal();
+        this.ui.setSleepFade(false);
+        this.resetDailySummaryTrackers();
+        this.isSleepingTransition = false;
+        this.audio.playChime();
+
+        const weatherText = this.weather.getWeatherLabel();
+        const rainNote = isRain ? ' Trời mưa nhẹ đã tự tưới hết đồi trà!' : '';
+        this.ui.hud.showToast(`🌅 Ngày ${this.time.day} (Xuân) • ${weatherText}.${rainNote}`);
+      });
+    }, 450);
   }
 
   private persistGame(showToast: boolean): void {
     const data: SaveData = {
-      version: 1,
+      saveVersion: CURRENT_SAVE_VERSION,
+      version: CURRENT_SAVE_VERSION,
       day: this.time.day,
       season: this.time.season,
       timeMinutes: this.time.timeMinutes,

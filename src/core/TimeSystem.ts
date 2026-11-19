@@ -53,7 +53,8 @@ export class TimeSystem {
 
   public getFormattedTime(): string {
     const total = Math.floor(this.timeMinutes);
-    const hh = Math.floor(total / 60) % 24;
+    if (total >= 1440) return '24:00';
+    const hh = Math.floor(total / 60);
     const mm = Math.floor((total % 60) / 10) * 10; // Bước 10 phút kiểu Stardew
     return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
   }

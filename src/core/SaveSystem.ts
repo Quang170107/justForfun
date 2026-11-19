@@ -1,6 +1,7 @@
 import { DryingSlotState, InventorySlot, SaveData, TilePlotState } from '../data/types';
 
 const SAVE_KEY = 'tra_quan_tren_may_save_v1';
+export const CURRENT_SAVE_VERSION = 2;
 
 export const FARM_ORIGIN_X = -10;
 export const FARM_ORIGIN_Z = 0;
@@ -48,7 +49,8 @@ export function createDefaultSave(): SaveData {
   inventory[7] = { itemId: 'honey', count: 2, quality: 1 };
 
   return {
-    version: 1,
+    saveVersion: CURRENT_SAVE_VERSION,
+    version: CURRENT_SAVE_VERSION,
     day: 1,
     season: 'Xuân',
     timeMinutes: 360, // 06:00
@@ -79,9 +81,29 @@ export function createDefaultSave(): SaveData {
 }
 
 export class SaveSystem {
+  public hasSave(): boolean {
+    return localStorage.getItem(SAVE_KEY) !== null;
+  }
+
+  public getSaveMeta(): { day: number; season: string; money: number; saveVersion: number } | null {
+    const data = this.load();
+    if (!data) return null;
+    return {
+      day: data.day,
+      season: data.season,
+      money: data.money,
+      saveVersion: data.saveVersion,
+    };
+  }
+
   public save(data: SaveData): boolean {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+      const payload: SaveData = {
+        ...data,
+        saveVersion: CURRENT_SAVE_VERSION,
+        version: CURRENT_SAVE_VERSION,
+      };
+      localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
       return true;
     } catch {
       return false;
@@ -92,9 +114,34 @@ export class SaveSystem {
     try {
       const raw = localStorage.getItem(SAVE_KEY);
       if (!raw) return null;
-      const parsed = JSON.parse(raw) as SaveData;
-      if (!parsed || parsed.version !== 1) return null;
-      return parsed;
+      const parsed = JSON.parse(raw) as Partial<SaveData>;
+      if (!parsed) return null;
+
+      const ver = parsed.saveVersion ?? parsed.version ?? 0;
+      if (ver < 1 || ver > CURRENT_SAVE_VERSION) return null;
+
+      const defaults = createDefaultSave();
+      return {
+        ...defaults,
+        ...parsed,
+        saveVersion: CURRENT_SAVE_VERSION,
+        version: CURRENT_SAVE_VERSION,
+        playerPos: parsed.playerPos ?? defaults.playerPos,
+        inventory: Array.isArray(parsed.inventory) && parsed.inventory.length === 24 ? parsed.inventory : defaults.inventory,
+        plots: Array.isArray(parsed.plots) && parsed.plots.length > 0 ? parsed.plots : defaults.plots,
+        dryingRack:
+          Array.isArray(parsed.dryingRack) && parsed.dryingRack.length > 0
+            ? parsed.dryingRack
+            : defaults.dryingRack,
+        unlockedRecipes: Array.isArray(parsed.unlockedRecipes) ? parsed.unlockedRecipes : defaults.unlockedRecipes,
+        relations: {
+          may: { ...defaults.relations.may, ...parsed.relations?.may },
+          co_lu: { ...defaults.relations.co_lu, ...parsed.relations?.co_lu },
+          ong_dang: { ...defaults.relations.ong_dang, ...parsed.relations?.ong_dang },
+          be_suong: { ...defaults.relations.be_suong, ...parsed.relations?.be_suong },
+        },
+        upgrades: { ...defaults.upgrades, ...parsed.upgrades },
+      };
     } catch {
       return null;
     }
