@@ -597,8 +597,18 @@ export class Game {
           'seed_ginger',
         ];
         seeds.forEach((s) => this.addItem(s, 5, 1));
+        const brewMats: { id: ItemId; count: number; quality: 1 | 2 | 3 }[] = [
+          { id: 'leaf_green_tea_fresh', count: 3, quality: 1 },
+          { id: 'tea_roasted', count: 3, quality: 3 },
+          { id: 'chrysanthemum_fresh', count: 3, quality: 2 },
+          { id: 'mint_fresh', count: 3, quality: 1 },
+          { id: 'jasmine_fresh', count: 3, quality: 1 },
+          { id: 'ginger_fresh', count: 3, quality: 3 },
+          { id: 'honey', count: 3, quality: 1 },
+        ];
+        brewMats.forEach((m) => this.addItem(m.id, m.count, m.quality));
         this.audio.playHarvest();
-        this.ui.hud.showToast('🌱 Debug: +5 mỗi loại hạt giống');
+        this.ui.hud.showToast('🌱 Debug: +5 hạt giống & +3 nguyên liệu pha trà các loại');
       }
     }
     if (this.input.consume('escape')) {
@@ -1114,6 +1124,7 @@ export class Game {
 
   private openBrewingModal(): void {
     this.ui.openModal('brewing');
+    this.ui.brewingScreen.resetBrewSession();
     this.ui.brewingScreen.renderBrewingCounter(
       this.ui.modalBox,
       this.inventory,
@@ -1127,16 +1138,30 @@ export class Game {
           .filter((s): s is InventorySlot => s !== null)
           .map((s) => ({ itemId: s.itemId, quality: s.quality }));
 
+        const preview = this.brewing.previewBrew(baseSlot.itemId, baseSlot.quality, addonObjs, temp, steep);
+        const hasStack = this.inventory.some(
+          (s) => s !== null && s.itemId === preview.itemId && s.quality === preview.quality
+        );
+        const consumeCounts = new Map<number, number>();
+        for (const idx of [baseSlotIdx, ...addonSlots]) {
+          consumeCounts.set(idx, (consumeCounts.get(idx) ?? 0) + 1);
+        }
+        const willFreeSlot =
+          this.inventory.some((s) => s === null) ||
+          Array.from(consumeCounts.entries()).some(
+            ([idx, n]) => (this.inventory[idx]?.count ?? 0) <= n
+          );
+        if (!hasStack && !willFreeSlot) {
+          this.ui.hud.showToast('Túi đồ đã đầy, hãy dọn bớt 1 ô trống trước khi pha trà!');
+          return null;
+        }
+
         const result = this.brewing.brew(baseSlot.itemId, baseSlot.quality, addonObjs, temp, steep);
         this.consumeAtSlot(baseSlotIdx, 1);
         for (const aIdx of addonSlots) {
           this.consumeAtSlot(aIdx, 1);
         }
-
-        if (!this.addItem(result.itemId, 1, result.quality)) {
-          this.ui.hud.showToast('Túi đồ đã đầy!');
-          return null;
-        }
+        this.addItem(result.itemId, 1, result.quality);
 
         this.time.advanceMinutes(15);
         this.audio.playPourTea();
@@ -1151,7 +1176,8 @@ export class Game {
         );
         return result;
       },
-      () => this.ui.closeModal()
+      () => this.ui.closeModal(),
+      () => this.audio.playChime()
     );
   }
 

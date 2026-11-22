@@ -16,7 +16,7 @@ export class BrewingSystem {
     this.unlockedRecipes = new Set(initialUnlocked);
   }
 
-  public brew(
+  public previewBrew(
     baseItem: ItemId,
     baseQuality: 1 | 2 | 3,
     addons: { itemId: ItemId; quality: 1 | 2 | 3 }[],
@@ -35,22 +35,34 @@ export class BrewingSystem {
     const quality = Math.max(1, Math.min(3, avgQuality)) as 1 | 2 | 3;
 
     if (matched) {
-      const newlyUnlocked = !this.unlockedRecipes.has(matched.id);
-      this.unlockedRecipes.add(matched.id);
       return {
         itemId: matched.resultItemId,
         quality,
         matchedRecipe: matched,
-        newlyUnlocked,
+        newlyUnlocked: !this.unlockedRecipes.has(matched.id),
       };
     }
 
     return {
       itemId: 'cup_mystery_tea',
-      quality: 1,
+      quality,
       matchedRecipe: null,
       newlyUnlocked: false,
     };
+  }
+
+  public brew(
+    baseItem: ItemId,
+    baseQuality: 1 | 2 | 3,
+    addons: { itemId: ItemId; quality: 1 | 2 | 3 }[],
+    waterTemp: TeaWaterTemp,
+    steepTime: TeaSteepTime
+  ): BrewResult {
+    const res = this.previewBrew(baseItem, baseQuality, addons, waterTemp, steepTime);
+    if (res.matchedRecipe) {
+      this.unlockedRecipes.add(res.matchedRecipe.id);
+    }
+    return res;
   }
 
   public getAllRecipes(): RecipeDef[] {

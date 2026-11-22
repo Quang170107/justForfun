@@ -1,4 +1,10 @@
+import { PALETTE } from '../art/palette';
 import { ItemId, RecipeDef, TeaSteepTime, TeaWaterTemp } from './types';
+
+export const MYSTERY_TEA_VISUAL = {
+  liquidColor: PALETTE.skyMid,
+  liquidHighlight: PALETTE.sakuraPink,
+};
 
 export const RECIPES: RecipeDef[] = [
   {
@@ -10,6 +16,8 @@ export const RECIPES: RecipeDef[] = [
     waterTemp: 'warm',
     steepTime: 'short',
     price: 55,
+    liquidColor: PALETTE.grassLight,
+    liquidHighlight: PALETTE.grassBright,
     description: 'Trà xanh pha nước ấm, ủ ngắn để giữ vị thanh khiết tự nhiên.',
     hints: [
       'Một tách trà mộc mạc, nhẹ nhàng, không thêm hương vị cầu kỳ...',
@@ -25,6 +33,8 @@ export const RECIPES: RecipeDef[] = [
     waterTemp: 'hot',
     steepTime: 'medium',
     price: 85,
+    liquidColor: PALETTE.amberGold,
+    liquidHighlight: PALETTE.whiteWarm,
     description: 'Hoa cúc và mật ong hãm nước nóng vừa phải, ngọt thơm rạng rỡ.',
     hints: [
       'Cháu thèm một ly trà vàng ươm ngọt lịm hương hoa ngoài vườn!',
@@ -40,6 +50,8 @@ export const RECIPES: RecipeDef[] = [
     waterTemp: 'warm',
     steepTime: 'medium',
     price: 75,
+    liquidColor: PALETTE.tealLight,
+    liquidHighlight: PALETTE.waterLight,
     description: 'Trà xanh kết hợp lá bạc hà, nước ấm ủ vừa tạo cảm giác sảng khoái.',
     hints: [
       'Bay suốt từ dãy núi xa tới đây cổ họng khô quá, cần vị gì thật mát lành...',
@@ -55,6 +67,8 @@ export const RECIPES: RecipeDef[] = [
     waterTemp: 'hot',
     steepTime: 'long',
     price: 115,
+    liquidColor: PALETTE.amberWarm,
+    liquidHighlight: PALETTE.cloudPink,
     description: 'Trà sao thơm ủ lâu cùng hoa nhài trong nước nóng, hương đêm sâu lắng.',
     hints: [
       'Mùi hương hoa trắng và lá trà sao thơm... hình như gắn với một cái tên...',
@@ -70,6 +84,8 @@ export const RECIPES: RecipeDef[] = [
     waterTemp: 'boiling',
     steepTime: 'long',
     price: 105,
+    liquidColor: PALETTE.roofMid,
+    liquidHighlight: PALETTE.amberGold,
     description: 'Gừng và mật ong đun nước sôi ủ lâu, cay ấm lan tỏa khắp lồng ngực.',
     hints: [
       'Hôm nay tôi thấy lạnh lẽo quá, gió biển mây cứ thổi buốt cả tay...',
@@ -124,4 +140,15 @@ export function getTempLabel(temp: TeaWaterTemp): string {
 
 export function getSteepLabel(steep: TeaSteepTime): string {
   return steep === 'short' ? 'Ngắn' : steep === 'medium' ? 'Vừa' : 'Lâu';
+}
+
+export function getTeaLiquidColors(itemId: ItemId): { liquidColor: string; liquidHighlight: string } {
+  const rec = RECIPES.find((r) => r.resultItemId === itemId);
+  if (rec) {
+    return {
+      liquidColor: rec.liquidColor,
+      liquidHighlight: rec.liquidHighlight,
+    };
+  }
+  return MYSTERY_TEA_VISUAL;
 }

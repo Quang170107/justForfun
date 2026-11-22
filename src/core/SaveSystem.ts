@@ -61,7 +61,7 @@ export function createDefaultSave(): SaveData {
     inventory,
     plots: createInitialPlots(),
     dryingRack: createInitialDryingRack(),
-    unlockedRecipes: ['recipe_green_pure'],
+    unlockedRecipes: [],
     relations: {
       may: { points: 0, talkedToday: false, giftedToday: false, seenMemories: [] },
       co_lu: { points: 0, talkedToday: false, giftedToday: false, seenMemories: [] },

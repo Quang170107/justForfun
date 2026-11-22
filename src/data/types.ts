@@ -94,6 +94,8 @@ export interface RecipeDef {
   waterTemp: TeaWaterTemp;
   steepTime: TeaSteepTime;
   price: number;
+  liquidColor: string;
+  liquidHighlight: string;
   description: string;
   hints: string[];
 }

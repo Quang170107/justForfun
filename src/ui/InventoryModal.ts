@@ -144,7 +144,7 @@ export class InventoryModal {
             <div class="card-top">
               <img src="${iconUrl}" style="filter:brightness(0.25);" alt="Chưa mở" />
               <div>
-                <strong>??? (${r.name})</strong>
+                <strong>???</strong>
                 <div style="font-size:12px;color:#8f5a34;">Chưa khám phá — hãy thử pha ở Quầy Trà!</div>
               </div>
             </div>
