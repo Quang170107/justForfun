@@ -7,6 +7,7 @@ import { ColliderBox, Island } from './Island';
 export interface InteractiveZone {
   id:
     | 'sleep_door'
+    | 'weather_radio'
     | 'shipping_bin'
     | 'seed_shop'
     | 'drying_rack'
@@ -264,12 +265,32 @@ export class Buildings {
     island.addCollider({ minX: cx - w / 2, maxX: cx - 0.85, minZ: cz + d / 2 - 0.25, maxZ: cz + d / 2 + 0.1 });
     island.addCollider({ minX: cx + 0.85, maxX: cx + w / 2, minZ: cz + d / 2 - 0.25, maxZ: cz + d / 2 + 0.1 });
 
+    // Đài radio dự báo thời tiết ngày mai trong Nhà Ở
+    const radio = pixelArt.createYBillboard({
+      textureKey: 'prop_weather_radio',
+      widthPx: 16,
+      heightPx: 20,
+      shadowScale: 0.72,
+      shadowYOffset: 0.038,
+      baseYOffset: 0.03,
+    });
+    radio.group.position.set(cx + 1.25, 0, cz + 0.35);
+    this.group.add(radio.group);
+    island.addCollider({ minX: cx + 0.9, maxX: cx + 1.6, minZ: cz + 0.05, maxZ: cz + 0.65 });
+    this.zones.push({
+      id: 'weather_radio',
+      label: 'Nghe Đài Dự Báo Thời Tiết Ngày Mai',
+      x: cx + 0.95,
+      z: cz + 0.45,
+      radius: 0.95,
+    });
+
     this.zones.push({
       id: 'sleep_door',
       label: 'Ngủ nghỉ & Lưu game (Giường ngủ)',
-      x: cx - 0.2,
-      z: cz + 0.3,
-      radius: 1.8,
+      x: cx - 1.0,
+      z: cz + 0.15,
+      radius: 1.15,
     });
   }
 
@@ -737,9 +758,10 @@ export class Buildings {
     const origins: [number, number, number][] = [
       [-1.25, 3.2, -5.75], // Ống khói nhà ở
       [5.5, 1.45, -5.8], // Ấm trà quầy trong quán
+      [5.5, 1.05, -0.35], // Hơi ấm tách trà trên bàn ngoài hiên
     ];
 
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 8; i++) {
       const [ox, oy, oz] = origins[i % origins.length];
       const sp = new THREE.Sprite(
         new THREE.SpriteMaterial({
@@ -750,9 +772,9 @@ export class Buildings {
         })
       );
       sp.position.set(ox, oy, oz);
-      sp.scale.set(0.55, 0.3, 1);
+      sp.scale.set(0.5, 0.28, 1);
       this.group.add(sp);
-      this.smokeParticles.push({ sprite: sp, originY: oy, phase: i * 0.9 });
+      this.smokeParticles.push({ sprite: sp, originY: oy, phase: i * 0.72 });
     }
   }
 

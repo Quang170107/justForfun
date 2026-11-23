@@ -1,10 +1,16 @@
 import * as THREE from 'three';
+import { WeatherType } from '../data/types';
+import { WEATHER_CONFIG } from '../data/weather';
 
 export interface DayLightingState {
   tintColor: THREE.Color;
   ambientIntensity: number;
   sunIntensity: number;
   nightFactor: number; // 0 = full day, 1 = full night
+  overlayOpacity: number;
+  fogColor: THREE.Color;
+  fogNear: number;
+  fogFar: number;
 }
 
 export class TimeSystem {
@@ -63,7 +69,7 @@ export class TimeSystem {
     return THREE.MathUtils.clamp((this.timeMinutes - 360) / (1440 - 360), 0, 1);
   }
 
-  public getLightingState(): DayLightingState {
+  public getLightingState(weather: WeatherType = 'sunny'): DayLightingState {
     const m = this.timeMinutes;
     const tint = new THREE.Color();
     let ambient = 0.9;
@@ -106,6 +112,28 @@ export class TimeSystem {
       nightFactor = THREE.MathUtils.lerp(0.85, 1.0, t);
     }
 
-    return { tintColor: tint, ambientIntensity: ambient, sunIntensity: sun, nightFactor };
+    const cfg = WEATHER_CONFIG[weather];
+    if (cfg.tintMix > 0) {
+      tint.lerp(new THREE.Color(cfg.tintHex), cfg.tintMix * (1 - nightFactor * 0.45));
+    }
+    ambient *= cfg.ambientMult;
+    sun *= cfg.sunMult;
+
+    const overlayOpacity = 0.08 + nightFactor * 0.34 + cfg.overlayOpacityBoost;
+    const fogColor = new THREE.Color(cfg.fogTintDay).lerp(
+      new THREE.Color(cfg.fogTintNight),
+      nightFactor * 0.92
+    );
+
+    return {
+      tintColor: tint,
+      ambientIntensity: ambient,
+      sunIntensity: sun,
+      nightFactor,
+      overlayOpacity,
+      fogColor,
+      fogNear: cfg.fogNear,
+      fogFar: cfg.fogFar,
+    };
   }
 }

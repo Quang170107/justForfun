@@ -11,6 +11,7 @@ import {
   ShopUpgradeId,
 } from '../data/economy';
 import { NPCS } from '../data/npcs';
+import { rollRandomWeather, WEATHER_CONFIG, WEATHER_FORECAST_TEXT } from '../data/weather';
 import {
   DailySummaryStats,
   GuestAppearanceId,
@@ -100,6 +101,10 @@ export class Game {
   private readonly camRightVec = new THREE.Vector3();
   private readonly camUpVec = new THREE.Vector3();
   private readonly billboardTint = new THREE.Color('#ffffff');
+  private readonly sceneFog = new THREE.Fog('#d9e6fa', 42, 160);
+  private cameraShakeTime = 0;
+  private cameraShakeDuration = 0.11;
+  private cameraShakeIntensity = 0.085;
 
   private tileCursorMesh: THREE.Mesh;
   private tileCursorMat: THREE.MeshBasicMaterial;
@@ -168,6 +173,7 @@ export class Game {
     // 2. Setup 2.5D Scene & Orthographic Camera (1 tile = 16x16 px at base res)
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(PALETTE.skyLight);
+    this.scene.fog = this.sceneFog;
 
     const halfW = BASE_W / PIXELS_PER_UNIT / 2; // 15
     const halfH = BASE_H / PIXELS_PER_UNIT / 2; // 8.4375
@@ -195,7 +201,7 @@ export class Game {
     this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
     this.scene.add(this.buildings.group);
 
-    this.weather = new WeatherSystem(loaded.weather);
+    this.weather = new WeatherSystem(loaded.weather, loaded.tomorrowWeather);
     this.scene.add(this.weather.group);
 
     this.farming = new FarmingSystem(this.tiles, this.weather, this.audio);
@@ -298,6 +304,7 @@ export class Game {
     this.time.season = data.season;
     this.time.timeMinutes = data.timeMinutes;
     this.weather.currentWeather = data.weather;
+    this.weather.tomorrowWeather = data.tomorrowWeather ?? rollRandomWeather();
 
     this.tiles.loadPlots(data.plots, this.upgrades.expandedFarmUnlocked);
     this.buildings.applyUpgrades(this.upgrades);
@@ -422,14 +429,20 @@ export class Game {
       this.tileCursorMesh.visible = false;
     }
 
-    const lighting = this.time.getLightingState();
+    const lighting = this.time.getLightingState(this.weather.currentWeather);
     this.ambientLight.color.copy(lighting.tintColor);
     this.ambientLight.intensity = lighting.ambientIntensity;
     this.dirLight.intensity = lighting.sunIntensity;
     (this.scene.background as THREE.Color).copy(lighting.tintColor).lerp(new THREE.Color(PALETTE.skyLight), 0.35);
 
-    const fogStrength = this.weather.currentWeather === 'foggy' ? 1 : 0;
-    this.cloudSea.update(this.elapsed, dt, fogStrength);
+    const fogAlpha = Math.min(1, dt * 3);
+    this.sceneFog.color.lerp(lighting.fogColor, fogAlpha);
+    this.sceneFog.near = THREE.MathUtils.lerp(this.sceneFog.near, lighting.fogNear, fogAlpha);
+    this.sceneFog.far = THREE.MathUtils.lerp(this.sceneFog.far, lighting.fogFar, fogAlpha);
+    this.cameraShakeTime = Math.max(0, this.cameraShakeTime - dt);
+
+    const fogStrength = WEATHER_CONFIG[this.weather.currentWeather].cloudRise;
+    this.cloudSea.update(this.elapsed, dt, fogStrength, lighting.nightFactor);
     this.island.update(this.elapsed, lighting.nightFactor);
     this.tiles.updateWindAndRain(this.elapsed, this.weather.currentWeather === 'rainy');
     this.buildings.update(this.elapsed, lighting.nightFactor, this.player.x, this.player.z);
@@ -458,7 +471,8 @@ export class Game {
       this.time.timeMinutes,
       this.money,
       lighting.tintColor.getHexString(),
-      lighting.nightFactor
+      lighting.nightFactor,
+      lighting.overlayOpacity
     );
     this.ui.hud.setLocation(this.buildings.getLocationLabel(this.player.x, this.player.z));
     this.ui.hud.renderHotbar(this.inventory, this.selectedHotbarIndex);
@@ -470,6 +484,8 @@ export class Game {
       tileInfo: this.getDebugTargetTileInfo(),
       timeInfo: `Ngày ${this.time.day} - ${this.time.getFormattedTime()}`,
       weather: this.weather.getWeatherLabel(),
+      tomorrowWeather: this.weather.getTomorrowWeatherLabel(),
+      particles: this.weather.getActiveParticleCount(),
     });
 
     // Cập nhật xoay camera mượt (~0.3s) & lerp theo dõi người chơi
@@ -632,6 +648,7 @@ export class Game {
       if (this.input.consume('debugAddMoney')) {
         this.money += 1000;
         this.audio.playCoin();
+        this.ui.hud.spawnHudMoneyPopup(1000);
         this.ui.hud.showToast('🪙 Debug: +1000 Xu Mây');
       }
       if (this.input.consume('debugCycleWeather')) {
@@ -671,9 +688,22 @@ export class Game {
         this.ui.hud.showToast('🌱 Debug: +5 hạt giống & +3 nguyên liệu pha trà các loại');
       }
       if (this.input.consume('debugAddHearts')) {
+        let milestoneNpc: { x: number; z: number; name: string; hearts: number } | null = null;
         (Object.keys(NPCS) as NpcId[]).forEach((id) => {
-          this.relations.addDebugPoints(id, 100);
+          const prev = this.relations.getHearts(id);
+          const next = this.relations.addDebugPoints(id, 100);
+          const ent = this.npcs.get(id);
+          if (ent && next > prev) {
+            this.weather.spawnSparkleBurst(ent.x, 1.4, ent.z, 10);
+            if (!milestoneNpc) {
+              milestoneNpc = { x: ent.x, z: ent.z, name: NPCS[id].name, hearts: next };
+            }
+          }
         });
+        if (milestoneNpc) {
+          const m = milestoneNpc as { x: number; z: number; name: string; hearts: number };
+          this.spawnWorldFloatingText(`💛 ${m.name} đạt ${m.hearts}♥!`, m.x, 1.85, m.z, 'heart');
+        }
         this.audio.playChime();
         this.ui.hud.showToast(
           '💖 Debug: +1 tim cho cả 4 NPC! Nói chuyện hoặc mở Quan Hệ để xem ký ức.'
@@ -774,7 +804,8 @@ export class Game {
       dt,
       activelyOpen,
       this.customers.map((c) => c.data),
-      this.upgrades.tableCount
+      this.upgrades.tableCount,
+      this.weather.currentWeather
     );
     if (spawned) {
       const seatPos = this.buildings.tableSeats[spawned.seatIndex];
@@ -977,15 +1008,24 @@ export class Game {
         const teaId = held.itemId;
         const quality = held.quality;
         this.consumeAtSlot(this.selectedHotbarIndex, 1);
+        const prevHearts = cust.data.npcId ? this.relations.getHearts(cust.data.npcId) : 0;
         const res = this.shop.serveCustomer(cust.data, teaId, quality);
         this.money += res.moneyEarned;
         this.dailyTeaIncome += res.moneyEarned;
+        this.spawnWorldFloatingText(`+${res.moneyEarned} Xu Mây`, cust.x, 1.7, cust.z, 'money');
+        this.ui.hud.spawnHudMoneyPopup(res.moneyEarned);
         if (res.exactMatch) {
           this.audio.playCoin();
           this.weather.spawnBurst(cust.x, 1.5, cust.z, PALETTE.amberGold, 10);
         } else {
           this.audio.playBlip(360);
           this.weather.spawnBurst(cust.x, 1.5, cust.z, PALETTE.waterBlue, 6);
+        }
+        if (cust.data.npcId) {
+          const newHearts = this.relations.getHearts(cust.data.npcId);
+          if (newHearts > prevHearts) {
+            this.triggerHeartMilestoneEffect(cust.x, cust.z, cust.data.displayName, newHearts);
+          }
         }
         this.ui.hud.showToast(res.message);
 
@@ -1040,11 +1080,16 @@ export class Game {
     // 2. Nói chuyện & tặng quà NPC
     const npc = this.findNearestNpc();
     if (npc) {
+      const prevTalkHearts = this.relations.getHearts(npc.def.id);
       const talk = this.relations.talkToNpc(npc.def.id, {
         day: this.time.day,
         weather: this.weather.currentWeather,
         timeMinutes: this.time.timeMinutes,
       });
+      const postTalkHearts = this.relations.getHearts(npc.def.id);
+      if (postTalkHearts > prevTalkHearts) {
+        this.triggerHeartMilestoneEffect(npc.x, npc.z, npc.def.name, postTalkHearts);
+      }
       if (talk.pointsAdded > 0) {
         this.ui.hud.showToast(`💛 +${talk.pointsAdded} điểm thân thiết với ${npc.def.name}`);
       }
@@ -1075,13 +1120,18 @@ export class Game {
                 const giftId = held!.itemId;
                 const q = held!.quality;
                 this.consumeAtSlot(this.selectedHotbarIndex, 1);
+                const prevGiftHearts = this.relations.getHearts(npc.def.id);
                 const gRes = this.relations.giveGift(npc.def.id, giftId, q);
+                const postGiftHearts = this.relations.getHearts(npc.def.id);
                 if (gRes.tier === 'disliked') {
                   this.audio.playBlip(280);
                   this.weather.spawnBurst(npc.x, 1.5, npc.z, PALETTE.waterBlue, 6);
                 } else {
                   this.audio.playChime();
                   this.weather.spawnBurst(npc.x, 1.5, npc.z, PALETTE.amberGold, 9);
+                }
+                if (postGiftHearts > prevGiftHearts) {
+                  this.triggerHeartMilestoneEffect(npc.x, npc.z, npc.def.name, postGiftHearts);
                 }
                 const sign = gRes.pointsDelta >= 0 ? `+${gRes.pointsDelta}` : `${gRes.pointsDelta}`;
                 this.ui.hud.showToast(
@@ -1122,6 +1172,17 @@ export class Game {
     if (zone && zone.id !== 'tea_table') {
       if (zone.id === 'sleep_door') {
         this.triggerSleep(false);
+        return;
+      }
+      if (zone.id === 'weather_radio') {
+        const forecast = WEATHER_FORECAST_TEXT[this.weather.tomorrowWeather];
+        this.audio.playChime();
+        this.ui.dialogue.open([
+          {
+            speaker: '📻 Đài Khí Tượng Tầng Mây',
+            text: `${forecast.title} — ${forecast.radioLine} (${forecast.tip})`,
+          },
+        ]);
         return;
       }
       if (zone.id === 'shipping_bin') {
@@ -1211,6 +1272,9 @@ export class Game {
     const onHarvestVisual = (harvestItemId: ItemId, wx: number, wz: number) => {
       this.spawnWorldFlyingItem(ITEMS[harvestItemId].iconKey, wx, 0.9, wz);
     };
+    const onTillGround = () => {
+      this.triggerCameraShake(0.085, 0.11);
+    };
 
     let acted = this.farming.tryFarmAction(
       targetX,
@@ -1220,7 +1284,8 @@ export class Game {
       this.upgrades.wateringCanLevel,
       { addItem: this.addItem, consumeAtSlot: this.consumeAtSlot },
       (msg) => this.ui.hud.showToast(msg),
-      onHarvestVisual
+      onHarvestVisual,
+      onTillGround
     );
     if (!acted && overrideX === undefined) {
       acted = this.farming.tryFarmAction(
@@ -1231,7 +1296,8 @@ export class Game {
         this.upgrades.wateringCanLevel,
         { addItem: this.addItem, consumeAtSlot: this.consumeAtSlot },
         (msg) => this.ui.hud.showToast(msg),
-        onHarvestVisual
+        onHarvestVisual,
+        onTillGround
       );
     }
 
@@ -1525,6 +1591,7 @@ export class Game {
           this.money += val;
           this.dailySalesIncome += val;
           this.audio.playCoin();
+          this.ui.hud.spawnHudMoneyPopup(val);
           this.ui.hud.showToast(`+${val} Xu Mây`);
           rerender();
         },
@@ -1682,7 +1749,7 @@ export class Game {
       this.processing.onNewDay();
       this.buildings.setDryingRackState(this.processing.getVisualState());
       this.relations.onNewDay();
-      this.shop.onNewDay();
+      this.shop.onNewDay(newWeather);
       this.buildings.setShopOpenSign(false);
       for (const n of this.npcs.values()) {
         n.syncToSchedule(this.time.timeMinutes, this.weather.currentWeather);
@@ -1719,6 +1786,9 @@ export class Game {
         this.resetDailySummaryTrackers();
         this.isSleepingTransition = false;
         this.audio.playChime();
+        if (shippingBinIncome > 0) {
+          this.ui.hud.spawnHudMoneyPopup(shippingBinIncome);
+        }
 
         const weatherText = this.weather.getWeatherLabel();
         const rainNote = isRain ? ' Trời mưa nhẹ đã tự tưới hết đồi trà!' : '';
@@ -1735,6 +1805,7 @@ export class Game {
       season: this.time.season,
       timeMinutes: this.time.timeMinutes,
       weather: this.weather.currentWeather,
+      tomorrowWeather: this.weather.tomorrowWeather,
       money: this.money,
       playerPos: { x: this.player.x, z: this.player.z },
       selectedHotbarIndex: this.selectedHotbarIndex,
@@ -1754,6 +1825,37 @@ export class Game {
     }
   }
 
+  private triggerCameraShake(intensity = 0.085, duration = 0.11): void {
+    this.cameraShakeIntensity = intensity;
+    this.cameraShakeDuration = duration;
+    this.cameraShakeTime = duration;
+  }
+
+  private spawnWorldFloatingText(
+    text: string,
+    wx: number,
+    wy: number,
+    wz: number,
+    variant: 'money' | 'heart' | 'info' = 'money'
+  ): void {
+    const proj = new THREE.Vector3(wx, wy, wz).project(this.camera);
+    const rect = this.renderer.domElement.getBoundingClientRect();
+    const sx = rect.left + (proj.x * 0.5 + 0.5) * rect.width;
+    const sy = rect.top + (-proj.y * 0.5 + 0.5) * rect.height;
+    this.ui.hud.spawnFloatingText(text, sx, sy, variant);
+  }
+
+  private triggerHeartMilestoneEffect(
+    wx: number,
+    wz: number,
+    npcName: string,
+    newHearts: number
+  ): void {
+    this.weather.spawnSparkleBurst(wx, 1.4, wz, 14);
+    this.audio.playChime();
+    this.spawnWorldFloatingText(`💛 ${npcName} đạt ${newHearts}♥!`, wx, 1.85, wz, 'heart');
+  }
+
   // ---------------- Camera & Render ----------------
   private startCameraRotation(deltaStep: 1 | -1): void {
     this.cameraYawStep = (this.cameraYawStep + deltaStep + 4) % 4;
@@ -1767,11 +1869,20 @@ export class Game {
     const dist = 16;
     const height = dist * Math.tan(CAMERA_ELEVATION_RAD); // Góc nhìn nghiêng 40°
 
-    this.camTargetVec.set(this.camFollowX, 0.4, this.camFollowZ);
+    let shakeX = 0;
+    let shakeZ = 0;
+    if (this.cameraShakeTime > 0) {
+      const ratio = this.cameraShakeTime / Math.max(0.01, this.cameraShakeDuration);
+      const mag = this.cameraShakeIntensity * ratio;
+      shakeX = Math.sin(this.elapsed * 95) * mag;
+      shakeZ = Math.cos(this.elapsed * 82) * mag * 0.7;
+    }
+
+    this.camTargetVec.set(this.camFollowX + shakeX, 0.4, this.camFollowZ + shakeZ);
     this.camera.position.set(
-      this.camFollowX + Math.sin(yaw) * dist,
+      this.camFollowX + shakeX + Math.sin(yaw) * dist,
       0.4 + height,
-      this.camFollowZ + Math.cos(yaw) * dist
+      this.camFollowZ + shakeZ + Math.cos(yaw) * dist
     );
     this.camera.lookAt(this.camTargetVec);
     this.camera.updateMatrixWorld();

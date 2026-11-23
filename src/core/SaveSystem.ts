@@ -1,4 +1,5 @@
 import { DryingSlotState, InventorySlot, SaveData, TilePlotState } from '../data/types';
+import { rollRandomWeather } from '../data/weather';
 
 const SAVE_KEY = 'tra_quan_tren_may_save_v1';
 export const CURRENT_SAVE_VERSION = 3;
@@ -55,6 +56,7 @@ export function createDefaultSave(): SaveData {
     season: 'Xuân',
     timeMinutes: 360, // 06:00
     weather: 'sunny',
+    tomorrowWeather: rollRandomWeather(),
     money: 150,
     playerPos: { x: -2, z: -2 },
     selectedHotbarIndex: 0,
@@ -135,6 +137,7 @@ export class SaveSystem {
         ...parsed,
         saveVersion: CURRENT_SAVE_VERSION,
         version: CURRENT_SAVE_VERSION,
+        tomorrowWeather: parsed.tomorrowWeather ?? defaults.tomorrowWeather,
         playerPos: parsed.playerPos ?? defaults.playerPos,
         inventory: Array.isArray(parsed.inventory) && parsed.inventory.length === 24 ? parsed.inventory : defaults.inventory,
         plots: Array.isArray(parsed.plots) && parsed.plots.length > 0 ? parsed.plots : defaults.plots,

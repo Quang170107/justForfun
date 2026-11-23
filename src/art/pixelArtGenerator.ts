@@ -895,6 +895,85 @@ class PixelArtRegistry {
       this.textures.set('prop_shipping_bin_full', makePixelTexture(c));
     }
 
+    // Vintage wooden weather radio (16x20)
+    {
+      const [c, ctx] = makeCanvas(16, 20);
+      // Antenna
+      px(ctx, 11, 2, PALETTE.outlinePlum, 1, 6);
+      px(ctx, 11, 1, PALETTE.amberGold, 1, 1);
+      // Table stand legs
+      px(ctx, 3, 15, PALETTE.outlineDark, 2, 4);
+      px(ctx, 11, 15, PALETTE.outlineDark, 2, 4);
+      px(ctx, 2, 14, PALETTE.woodDark, 12, 2);
+      // Radio cabinet
+      px(ctx, 2, 7, PALETTE.outlineDark, 12, 8);
+      px(ctx, 3, 8, PALETTE.woodBright, 10, 6);
+      // Speaker grille (left)
+      px(ctx, 4, 9, PALETTE.woodDark, 4, 4);
+      px(ctx, 5, 9, PALETTE.creamMid, 1, 4);
+      px(ctx, 7, 9, PALETTE.creamMid, 1, 4);
+      // Warm dial & knob (right)
+      px(ctx, 9, 9, PALETTE.amberGold, 3, 2);
+      px(ctx, 10, 12, PALETTE.outlinePlum, 2, 2);
+      this.textures.set('prop_weather_radio', makePixelTexture(c));
+    }
+
+    // Elliptical pixel puddle (16x12)
+    {
+      const [c, ctx] = makeCanvas(16, 12);
+      for (let y = 0; y < 12; y++) {
+        for (let x = 0; x < 16; x++) {
+          const nx = (x - 7.5) / 6.8;
+          const ny = (y - 5.5) / 4.6;
+          const d = nx * nx + ny * ny;
+          if (d <= 1) {
+            ctx.fillStyle = d > 0.72 ? PALETTE.waterLight : PALETTE.waterBlue;
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+      px(ctx, 5, 4, PALETTE.whiteWarm, 3, 1);
+      this.textures.set('prop_puddle', makePixelTexture(c));
+    }
+
+    // Concentric pixel rain ripple ring (16x12)
+    {
+      const [c, ctx] = makeCanvas(16, 12);
+      for (let y = 0; y < 12; y++) {
+        for (let x = 0; x < 16; x++) {
+          const nx = (x - 7.5) / 6.8;
+          const ny = (y - 5.5) / 4.6;
+          const d = Math.sqrt(nx * nx + ny * ny);
+          if (d >= 0.74 && d <= 0.96) {
+            ctx.fillStyle = PALETTE.waterLight;
+            ctx.fillRect(x, y, 1, 1);
+          }
+        }
+      }
+      this.textures.set('prop_puddle_ripple', makePixelTexture(c));
+    }
+
+    // Flapping cloud swallows - 2 frames (12x8)
+    {
+      const [c0, ctx0] = makeCanvas(12, 8);
+      px(ctx0, 4, 4, PALETTE.outlinePlum, 4, 2);
+      px(ctx0, 5, 4, PALETTE.whiteWarm, 2, 1);
+      px(ctx0, 1, 2, PALETTE.outlinePlum, 3, 2);
+      px(ctx0, 2, 2, PALETTE.skyLight, 2, 1);
+      px(ctx0, 8, 2, PALETTE.outlinePlum, 3, 2);
+      px(ctx0, 8, 2, PALETTE.skyLight, 2, 1);
+      this.textures.set('prop_bird_0', makePixelTexture(c0));
+
+      const [c1, ctx1] = makeCanvas(12, 8);
+      px(ctx1, 4, 3, PALETTE.outlinePlum, 4, 2);
+      px(ctx1, 5, 3, PALETTE.whiteWarm, 2, 1);
+      px(ctx1, 1, 4, PALETTE.outlinePlum, 3, 2);
+      px(ctx1, 2, 5, PALETTE.skyLight, 2, 1);
+      px(ctx1, 8, 4, PALETTE.outlinePlum, 3, 2);
+      px(ctx1, 8, 5, PALETTE.skyLight, 2, 1);
+      this.textures.set('prop_bird_1', makePixelTexture(c1));
+    }
+
     // Elliptical pixel shadow (16x8)
     {
       const [c, ctx] = makeCanvas(16, 8);

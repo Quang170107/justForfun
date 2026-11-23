@@ -212,6 +212,7 @@ export interface SaveData {
   season: 'Xuân';
   timeMinutes: number; // 360 (6:00) -> 1440 (24:00)
   weather: WeatherType;
+  tomorrowWeather?: WeatherType;
   money: number; // Xu Mây
   playerPos: { x: number; z: number };
   selectedHotbarIndex: number;

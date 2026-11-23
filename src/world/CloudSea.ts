@@ -7,6 +7,8 @@ export class CloudSea {
   private seaUniforms: { uTime: { value: number }; uFogLevel: { value: number } };
   private tufts: { sprite: THREE.Sprite; baseX: number; baseY: number; speed: number; amp: number }[] = [];
   private fogVeilMesh: THREE.Mesh;
+  private readonly fogDayColor = new THREE.Color(PALETTE.cloudWhite);
+  private readonly fogNightColor = new THREE.Color('#4a4778');
 
   constructor() {
     this.seaUniforms = {
@@ -125,20 +127,21 @@ export class CloudSea {
     }
   }
 
-  public update(elapsed: number, dt: number, fogStrength: number): void {
+  public update(elapsed: number, dt: number, fogStrength: number, nightFactor = 0): void {
     this.seaUniforms.uTime.value = elapsed;
     this.seaUniforms.uFogLevel.value = fogStrength;
 
     const veilMat = this.fogVeilMesh.material as THREE.MeshBasicMaterial;
-    veilMat.opacity = THREE.MathUtils.lerp(veilMat.opacity, fogStrength * 0.34, Math.min(1, dt * 2));
-    this.fogVeilMesh.position.y = THREE.MathUtils.lerp(-1.2, -0.05, fogStrength);
+    veilMat.opacity = THREE.MathUtils.lerp(veilMat.opacity, fogStrength * 0.42, Math.min(1, dt * 2.2));
+    veilMat.color.lerpColors(this.fogDayColor, this.fogNightColor, nightFactor * 0.85);
+    this.fogVeilMesh.position.y = THREE.MathUtils.lerp(-1.2, 0.06, fogStrength);
 
     for (const t of this.tufts) {
       t.sprite.position.x += t.speed * dt;
       if (t.sprite.position.x > 34) {
         t.sprite.position.x = -34;
       }
-      t.sprite.position.y = t.baseY + fogStrength * 0.75 + Math.sin(elapsed * 0.8 + t.baseX) * t.amp;
+      t.sprite.position.y = t.baseY + fogStrength * 1.15 + Math.sin(elapsed * 0.8 + t.baseX) * t.amp;
     }
   }
 }

@@ -9,6 +9,7 @@ import {
   ItemId,
   MemoryCutscene,
   NpcId,
+  WeatherType,
 } from '../data/types';
 import { RelationshipSystem } from './RelationshipSystem';
 
@@ -21,9 +22,15 @@ export class ShopSystem {
 
   constructor(private relations: RelationshipSystem) {}
 
-  public onNewDay(): void {
+  public onNewDay(weather: WeatherType = 'sunny'): void {
     this.customersSpawnedToday = 0;
-    this.maxCustomersToday = 4 + Math.floor(Math.random() * 3); // 4-6 khách (trong khoảng 3-6 khách/buổi)
+    if (weather === 'rainy') {
+      this.maxCustomersToday = 2 + Math.floor(Math.random() * 2); // 2-3 khách ngày mưa
+    } else if (weather === 'foggy') {
+      this.maxCustomersToday = 3 + Math.floor(Math.random() * 3); // 3-5 khách ngày sương mù
+    } else {
+      this.maxCustomersToday = 4 + Math.floor(Math.random() * 3); // 4-6 khách ngày nắng
+    }
     this.spawnCooldown = 1.2;
     this.isManuallyOpen = false;
     this.afternoonFinishedAnnounced = false;
@@ -62,10 +69,13 @@ export class ShopSystem {
     dt: number,
     isActivelyOpen: boolean,
     activeCustomers: ActiveCustomer[],
-    tableCount: number
+    tableCount: number,
+    weather: WeatherType = 'sunny'
   ): ActiveCustomer | null {
     if (!isActivelyOpen) return null;
-    if (this.customersSpawnedToday >= this.maxCustomersToday) return null;
+    const effectiveMax =
+      weather === 'rainy' ? Math.min(this.maxCustomersToday, 3) : this.maxCustomersToday;
+    if (this.customersSpawnedToday >= effectiveMax) return null;
 
     const maxSeats = Math.max(3, Math.min(5, tableCount));
     const occupiedSeats = new Set(activeCustomers.map((c) => c.seatIndex));
@@ -75,7 +85,7 @@ export class ShopSystem {
     this.spawnCooldown -= dt;
     if (this.spawnCooldown > 0) return null;
 
-    this.spawnCooldown = 6 + Math.random() * 5;
+    this.spawnCooldown = weather === 'rainy' ? 9 + Math.random() * 5 : 6 + Math.random() * 5;
     const npcPool: NpcId[] = ['may', 'co_lu', 'ong_dang', 'be_suong'];
     const activeNpcs = new Set(
       activeCustomers.map((c) => c.npcId).filter((id): id is NpcId => id !== null)

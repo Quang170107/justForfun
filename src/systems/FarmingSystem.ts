@@ -26,7 +26,8 @@ export class FarmingSystem {
     wateringLevel: 1 | 2,
     invOps: InventoryOps,
     notify: (msg: string) => void,
-    onHarvestVisual?: (harvestItemId: ItemId, wx: number, wz: number) => void
+    onHarvestVisual?: (harvestItemId: ItemId, wx: number, wz: number) => void,
+    onTillGround?: (wx: number, wz: number) => void
   ): boolean {
     const { gx, gy } = this.tiles.worldToGrid(targetX, targetZ);
     if (!this.tiles.isPlotAccessible(gx, gy)) return false;
@@ -80,6 +81,7 @@ export class FarmingSystem {
       this.tiles.refreshPlotVisual(gx, gy);
       this.audio.playHoe();
       this.weather.spawnBurst(wx, 0.15, wz, PALETTE.soilLight, 6);
+      onTillGround?.(wx, wz);
       return true;
     }
 

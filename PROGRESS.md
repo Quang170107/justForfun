@@ -1,7 +1,7 @@
 # PROGRESS — Trà Quán Trên Mây
 
 ## Giai đoạn hiện tại
-Phase 10 — Kinh tế, cửa hàng, nâng cấp (Xong, chờ xác nhận)
+Phase 11 — Thời tiết & hiệu ứng (Xong, chờ xác nhận)
 
 ## Lịch sử
 | Phase | Trạng thái | Ngày | Ghi chú |
@@ -17,12 +17,13 @@ Phase 10 — Kinh tế, cửa hàng, nâng cấp (Xong, chờ xác nhận)
 | 8 | Xong | 2026-11-23 | Hoàn thiện Quán trà & khách: biển Mở/Đóng cửa (`14:00–20:00`), Bến Mây phía Nam đảo, 4 kiểu khách vãng lai ngẫu nhiên + 4 NPC chính đi từ Bến Mây vào bàn không cắt xuyên bàn, dữ liệu order gợi ý mơ hồ ở `src/data/customers.ts`, bong bóng order/chờ lâu/vui/buồn + chân dung 3 biểu cảm, phục vụ đúng/sai trả tiền tương ứng & khách chờ lâu không bỏ về |
 | 9 | Xong | 2026-11-23 | Hoàn thiện NPC, hội thoại, thân thiết: lịch trình sáng/chiều/tối & trú mưa cho cả 4 NPC (`src/data/npcs.ts`, `src/entities/NPC.ts`), hội thoại theo ngày/thời tiết/buổi/mức tim không lặp lại (`src/data/dialogues.ts`, `RelationshipSystem.ts`), tặng quà 4 mức yêu thích/thích/bình thường/ghét, cao độ bíp thoại riêng từng NPC, đủ cutscene ký ức 2/5/8/10 tim, tab Quan Hệ riêng biệt & phím debug `F10` |
 | 10 | Xong | 2026-11-23 | Hoàn thiện Kinh tế, cửa hàng, nâng cấp: tách toàn bộ bảng giá/giờ mở sạp/nâng cấp/vùng đặt trang trí sang `src/data/economy.ts`, Sạp Bé Sương mở theo giờ (`08:00–18:00`) có 3 tab (Hạt & Mật / Đồ Trang Trí / Nâng Cấp), nâng cấp Bình tưới đồng 3 ô, mở rộng quán 3→4→5 bàn 2 hàng gọn gàng, mở rộng đồi trà 8×6→10×6, đặt & thu hồi 3 món trang trí (`decor_lantern` sáng ban đêm, `decor_wind_chime` đung đưa gió, `decor_potted_plant`), Hộp Bán Hàng Qua Đêm ký gửi/rút lại + kết toán cuối ngày, nâng cấp `SaveSystem` v3 |
+| 11 | Xong | 2026-11-23 | Hoàn thiện Thời tiết & hiệu ứng: tách dữ liệu & lời phát thanh sang `src/data/weather.ts`, thêm Đài Radio Dự Báo Thời Tiết ngày mai trong Nhà Ở khớp thời tiết sáng hôm sau (`tomorrowWeather`), nâng cấp Mưa (ánh sáng mát tối hơn, mưa xiên, vũng nước pixel gợn sóng, tự tưới đất, giảm lượng khách mưa còn 2–3), nâng cấp Sương mù (biển mây dâng sát mép đảo, mây trôi quanh viền + `THREE.Fog`), thêm chim bay ngang 2 frame + hơi ấm bàn trà, giới hạn cứng burst particle (`MAX_BURST_PARTICLES = 60`, hiển thị `Hạt` ở `F3`), và bổ sung juice (+Xu Mây nảy lên, rung camera nhẹ khi cuốc, lấp lánh mốc tim NPC) |
 
 ## Đánh giá hệ thống (cập nhật liên tục)
 | Hệ thống | Trạng thái | Ghi chú |
 |---|---|---|
 | Khung dự án & Build (`package.json`, `tsconfig.json`, `vite.config.ts`) | Có | Build `tsc && vite build` sạch, `.gitignore` bỏ qua `node_modules/`, `dist/`, `.vite/` |
-| Debug Overlay & Phím Debug (`F3`, `F5`–`F10`) | Có | Chỉ bật khi `import.meta.env.DEV`; hiển thị FPS, tọa độ, ô nhắm, giờ, thời tiết; thêm `F10` +1 tim cho 4 NPC |
+| Debug Overlay & Phím Debug (`F3`, `F5`–`F10`) | Có | Chỉ bật khi `import.meta.env.DEV`; hiển thị FPS, số hạt particle (`Hạt`), tọa độ, ô nhắm, giờ, thời tiết hôm nay & dự báo ngày mai; đầy đủ `F5`–`F10` |
 | Render pixel 2.5D (`src/core/Game.ts`, `src/art/*`) | Có | RenderTarget `480×270` `NearestFilter`, scale bội số nguyên khi resize, `OrthographicCamera` 40° (1 ô = 16 px), camera lerp + screen-space pixel snap, xoay 90° mượt 0.3s, Y-billboard + bóng elip, helper tạo texture/billboard dùng chung |
 | Thế giới & Tileset (`src/world/*`, `src/data/islandMap.ts`) | Có | Bản đồ 2D tách dữ liệu, auto-tile rìa đá/gỗ/đất 4 hướng, vách đảo 2.5D + dây leo/rễ cây, biển mây 4 phía, Quán trà & Nhà ở có cửa vào/ra làm mờ mái lộ nội thất, Sạp hạt giống & Hải đăng kính pixel, hàng rào tự nối 4 hướng, đá/chậu hoa/đèn đá, va chạm kín toàn đảo |
 | Nhân vật & Điều khiển (`src/entities/Player.ts`, `src/core/InputSystem.ts`) | Có | Sprite 16×32 đi 4 hướng × 4 frame + idle 2 frame khớp quãng đường thực (không foot sliding), chuẩn hóa 8 hướng + trượt dọc tường/góc, con trỏ ô (`tile cursor`) hỗ trợ click chuột 1 ô, hotbar `1–9` + lăn chuột, animation công cụ 3 frame khóa di chuyển, gợi ý ngữ cảnh `[E]` |
@@ -33,7 +34,7 @@ Phase 10 — Kinh tế, cửa hàng, nâng cấp (Xong, chờ xác nhận)
 | Quán trà & Khách (`src/systems/ShopSystem.ts`, `src/entities/Customer.ts`, `src/data/customers.ts`) | Có | Biển Mở/Đóng quán (`14:00–20:00`), Bến Mây phía Nam, 4–6 khách mỗi buổi gồm 4 ngoại hình khách vãng lai + 4 NPC chính, lộ trình vào/ra từ Bến Mây, bong bóng pixel (`bubble_order`/`waiting`/`happy`/`sad`), order gợi ý mơ hồ từ `src/data/`, phục vụ đúng/sai trả Xu Mây + biểu cảm tương ứng và kiên nhẫn cao không bỏ về |
 | NPC, Hội thoại, Thân thiết (`src/entities/NPC.ts`, `src/systems/RelationshipSystem.ts`, `src/data/*`) | Có | 4 NPC có lịch trình sáng/chiều/tối & đổi trú mưa, hội thoại biến thiên theo ngày/thời tiết/buổi tối/tim không lặp, hệ thống tim 0–10 với quà 4 mức (thích nhất/thích/thường/ghét), cutscene ký ức mốc 2/5/8/10 tim, cao độ tiếng bíp riêng và tab Quan Hệ trong menu |
 | Kinh tế, Cửa hàng, Nâng cấp (`src/data/economy.ts`, `src/ui/ShopAndMenuModal.ts`, `src/core/Game.ts`) | Có | Đã tách toàn bộ bảng giá & quy tắc vào `src/data/economy.ts`; Sạp Bé Sương mở theo giờ (`08:00–18:00`) có 3 tab, Bình tưới đồng 3 ô, mở rộng quán 3→4→5 bàn, đồi trà `10×6`, đặt/thu hồi 3 đồ trang trí tùy vị trí hợp lệ trên đảo, Hộp Bán Hàng Qua Đêm (sprite đầy/vơi, rút/ký gửi, tổng kết thu nhập sáng hôm sau) |
-| Thời tiết & Hiệu ứng (`src/systems/WeatherSystem.ts`) | Một phần | Đã có Nắng/Mưa/Sương mù, mưa xiên, vũng nước, bướm, cánh hoa, khói, đom đóm; thiếu dự báo thời tiết ngày mai, số tiền nảy lên và rung nhẹ khi cuốc (Phase 11) |
+| Thời tiết & Hiệu ứng (`src/data/weather.ts`, `src/systems/WeatherSystem.ts`, `src/world/CloudSea.ts`) | Có | Đài Radio dự báo thời tiết ngày mai trong Nhà Ở khớp thời tiết ngày mới (`tomorrowWeather` lưu trong `SaveSystem`), 3 thời tiết Nắng/Mưa/Sương mù phân biệt rõ ngày & đêm (mưa xiên, vũng nước gợn sóng, tự tưới, ánh sáng tối mát hơn, ít khách ngày mưa; sương mù dâng biển mây + dải mây viền + `THREE.Fog`), cỏ cây lay, bướm, chim bay 2 frame, cánh hoa rơi, khói ống khói/hơi trà, đom đóm đêm, giới hạn particle giữ mượt FPS, cùng juice (số tiền nảy lên, rung nhẹ khi cuốc, lấp lánh mốc tim) |
 | UI & Âm thanh (`src/ui/*`, `src/core/AudioSystem.ts`) | Một phần | Đã có khung gỗ giấy da Stardew, đồng hồ mặt trời/trăng, tooltip, nhạc & SFX Web Audio; thiếu kéo thả túi đồ, slider âm lượng tách nhạc/SFX, nhạc riêng ngày/đêm/mưa và bước chân theo bề mặt (Phase 12) |
 | Cốt truyện & Nội dung mùa Xuân (`src/data/dialogues.ts`) | Một phần | Đã có lá thư bà ngoại mở đầu; thiếu cảnh mở đầu thuyền mây, hướng dẫn lồng 3 ngày đầu, dọn quán, Lễ Thả Đèn Mây ngày 24 và tổng kết ngày 28 (Phase 13) |
 
@@ -41,4 +42,4 @@ Phase 10 — Kinh tế, cửa hàng, nâng cấp (Xong, chờ xác nhận)
 - Không có lỗi TypeScript, lỗi biên dịch hay console error phát sinh.
 
 ## Câu hỏi cho người dùng
-- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 10, tôi sẽ chuyển sang **Giai đoạn 11 — Thời tiết & hiệu ứng**.
+- Chưa có câu hỏi chặn tiến độ. Sau khi xác nhận Giai đoạn 11, tôi sẽ chuyển sang **Giai đoạn 12 — UI hoàn thiện & âm thanh**.

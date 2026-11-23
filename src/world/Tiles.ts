@@ -9,6 +9,8 @@ interface PlotVisual {
   cropMat: THREE.MeshBasicMaterial;
   sparkleSprite: THREE.Sprite;
   puddleMesh: THREE.Mesh;
+  rippleMesh: THREE.Mesh;
+  rippleMat: THREE.MeshBasicMaterial;
 }
 
 export class Tiles {
@@ -66,13 +68,13 @@ export class Tiles {
       sparkleSprite.visible = false;
       this.group.add(sparkleSprite);
 
-      // Vũng nước nhỏ khi trời mưa
-      const puddleGeo = new THREE.PlaneGeometry(0.5, 0.35);
+      // Vũng nước pixel có gợn sóng khi trời mưa
+      const puddleGeo = new THREE.PlaneGeometry(0.62, 0.44);
       puddleGeo.rotateX(-Math.PI / 2);
       const puddleMat = new THREE.MeshBasicMaterial({
-        color: '#76b9e8',
+        map: pixelArt.getTexture('prop_puddle'),
         transparent: true,
-        opacity: 0.45,
+        opacity: 0.78,
         depthWrite: false,
       });
       const puddleMesh = new THREE.Mesh(puddleGeo, puddleMat);
@@ -80,12 +82,24 @@ export class Tiles {
       puddleMesh.visible = false;
       this.group.add(puddleMesh);
 
+      const rippleMat = new THREE.MeshBasicMaterial({
+        map: pixelArt.getTexture('prop_puddle_ripple'),
+        transparent: true,
+        opacity: 0.7,
+        depthWrite: false,
+      });
+      const rippleMesh = new THREE.Mesh(puddleGeo, rippleMat);
+      rippleMesh.position.set(0, 0.004, 0);
+      puddleMesh.add(rippleMesh);
+
       this.visuals.set(this.key(p.gx, p.gy), {
         groundMesh,
         cropGroup: cropHandle.group,
         cropMat: cropHandle.material,
         sparkleSprite,
         puddleMesh,
+        rippleMesh,
+        rippleMat,
       });
     }
 
@@ -222,7 +236,14 @@ export class Tiles {
           v.sparkleSprite.visible = false;
         }
 
-        v.puddleMesh.visible = isRaining && (gx + gy) % 5 === 0 && !p.cropId;
+        const showPuddle = isRaining && (gx + gy) % 5 === 0 && !p.cropId;
+        v.puddleMesh.visible = showPuddle;
+        if (showPuddle) {
+          const rPhase = (elapsed * 0.95 + gx * 0.23 + gy * 0.17) % 1;
+          const rScale = 0.45 + rPhase * 0.72;
+          v.rippleMesh.scale.set(rScale, rScale, 1);
+          v.rippleMat.opacity = (1 - rPhase) * 0.72;
+        }
       }
     }
   }

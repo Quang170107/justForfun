@@ -23,6 +23,7 @@ export class HUD {
   private daylightTintEl = document.getElementById('daylight-tint')!;
 
   private lastRenderedKey = '';
+  private activeFloatingPopups: HTMLElement[] = [];
 
   constructor(
     private onSelectHotbar: (idx: number) => void,
@@ -45,7 +46,8 @@ export class HUD {
     timeMinutes: number,
     money: number,
     tintHex: string,
-    nightFactor: number
+    nightFactor: number,
+    overlayOpacity?: number
   ): void {
     this.dayEl.textContent = `${season} • Ngày ${day}`;
     this.timeEl.textContent = formattedTime;
@@ -74,9 +76,9 @@ export class HUD {
     this.dialHandEl.style.transform = `translate(${arcX.toFixed(1)}px, ${arcY.toFixed(1)}px)`;
     this.dialBgEl.style.background = progress > 0.72 ? '#313d5a' : progress > 0.55 ? '#ee9389' : '#8fa8e0';
 
-    // Phủ lớp tint ngày đêm toàn màn hình kiểu Stardew
+    // Phủ lớp tint ngày đêm & thời tiết toàn màn hình kiểu Stardew
     this.daylightTintEl.style.backgroundColor = `#${tintHex}`;
-    this.daylightTintEl.style.opacity = String(0.08 + nightFactor * 0.34);
+    this.daylightTintEl.style.opacity = String(overlayOpacity ?? 0.08 + nightFactor * 0.34);
   }
 
   public setLocation(label: string): void {
@@ -104,6 +106,8 @@ export class HUD {
       tileInfo: string;
       timeInfo: string;
       weather: string;
+      tomorrowWeather: string;
+      particles: number;
     }
   ): void {
     if (!visible) {
@@ -112,10 +116,10 @@ export class HUD {
     }
     this.debugOverlayEl.classList.remove('hidden');
     this.debugOverlayEl.innerHTML = `
-      <div><b>[DEBUG F3]</b> FPS: <b>${info.fps}</b></div>
+      <div><b>[DEBUG F3]</b> FPS: <b>${info.fps}</b> • Hạt: <b>${info.particles}</b></div>
       <div>Vị trí: X=${info.x.toFixed(2)}, Z=${info.z.toFixed(2)} (${info.dir})</div>
       <div>Ô nhắm: ${info.tileInfo}</div>
-      <div>Giờ: ${info.timeInfo} | ${info.weather}</div>
+      <div>Giờ: ${info.timeInfo} | ${info.weather} (Mai: ${info.tomorrowWeather})</div>
       <div style="font-size:11px;color:#6b3e26;margin-top:3px;">F5:+1h • F6:Qua ngày • F7:+1000Xu<br/>F8:Thời tiết • F9:Hạt & NL • F10:+1Tim</div>
     `;
   }
@@ -208,5 +212,37 @@ export class HUD {
     setTimeout(() => {
       img.remove();
     }, 540);
+  }
+
+  public spawnFloatingText(
+    text: string,
+    screenX: number,
+    screenY: number,
+    variant: 'money' | 'heart' | 'info' = 'money'
+  ): void {
+    if (this.activeFloatingPopups.length >= 8) {
+      const oldest = this.activeFloatingPopups.shift();
+      oldest?.remove();
+    }
+    const el = document.createElement('div');
+    el.className = `floating-popup ${variant}`;
+    el.textContent = text;
+    el.style.left = `${Math.round(screenX)}px`;
+    el.style.top = `${Math.round(screenY)}px`;
+    document.body.appendChild(el);
+    this.activeFloatingPopups.push(el);
+
+    setTimeout(() => {
+      el.remove();
+      const idx = this.activeFloatingPopups.indexOf(el);
+      if (idx !== -1) this.activeFloatingPopups.splice(idx, 1);
+    }, 1150);
+  }
+
+  public spawnHudMoneyPopup(amount: number): void {
+    const rect = this.moneyEl.getBoundingClientRect();
+    const cx = rect.width > 0 ? rect.left + rect.width * 0.5 : window.innerWidth - 90;
+    const cy = rect.height > 0 ? rect.top - 8 : 95;
+    this.spawnFloatingText(`+${amount} Xu Mây`, cx, cy, 'money');
   }
 }
