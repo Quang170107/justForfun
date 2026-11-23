@@ -1,11 +1,19 @@
 import * as THREE from 'three';
 import { pixelArt } from '../art/pixelArtGenerator';
-import { UpgradesState } from '../data/types';
+import { PlacedDecorState, UpgradesState } from '../data/types';
 import { DryingRackVisualState } from '../systems/ProcessingSystem';
-import { Island } from './Island';
+import { ColliderBox, Island } from './Island';
 
 export interface InteractiveZone {
-  id: 'sleep_door' | 'seed_shop' | 'drying_rack' | 'roast_wok' | 'brew_counter' | 'tea_table' | 'open_sign';
+  id:
+    | 'sleep_door'
+    | 'shipping_bin'
+    | 'seed_shop'
+    | 'drying_rack'
+    | 'roast_wok'
+    | 'brew_counter'
+    | 'tea_table'
+    | 'open_sign';
   label: string;
   x: number;
   z: number;
@@ -17,10 +25,11 @@ export class Buildings {
   public readonly group = new THREE.Group();
   public readonly zones: InteractiveZone[] = [];
   public readonly tableSeats: { x: number; z: number }[] = [
-    { x: 3.3, z: 0.2 },
-    { x: 5.5, z: 0.7 },
-    { x: 7.7, z: 0.2 },
-    { x: 7.7, z: 2.0 }, // Bàn thứ 4 khi nâng cấp
+    { x: 3.1, z: -0.35 },
+    { x: 5.5, z: -0.35 },
+    { x: 7.9, z: -0.35 },
+    { x: 4.2, z: 1.65 }, // Bàn thứ 4 khi nâng cấp
+    { x: 6.8, z: 1.65 }, // Bàn thứ 5 khi nâng cấp
   ];
 
   private nightGlows: THREE.Sprite[] = [];
@@ -38,14 +47,22 @@ export class Buildings {
   private dryingSparkle!: THREE.Sprite;
   public readonly dryingRackPos = { x: 0.25, z: -0.6 };
   public readonly roastWokPos = { x: 0.25, z: 1.4 };
-  private extraTableGroup = new THREE.Group();
+  private islandRef!: Island;
+  private table4Group = new THREE.Group();
+  private table5Group = new THREE.Group();
+  private table4Collider: ColliderBox = { minX: 4.2 - 0.55, maxX: 4.2 + 0.55, minZ: 1.65 - 0.45, maxZ: 1.65 + 0.45 };
+  private table5Collider: ColliderBox = { minX: 6.8 - 0.55, maxX: 6.8 + 0.55, minZ: 1.65 - 0.45, maxZ: 1.65 + 0.45 };
+  private shippingBinMat!: THREE.MeshBasicMaterial;
   private decorGroup = new THREE.Group();
+  private decorNightGlows: THREE.Sprite[] = [];
+  private decorSwayProps: { obj: THREE.Object3D; baseZ: number; phase: number }[] = [];
   private smokeParticles: { sprite: THREE.Sprite; originY: number; phase: number }[] = [];
 
   private homeRoofOpacity = 1;
   private teahouseRoofOpacity = 1;
 
   constructor(island: Island, upgrades: UpgradesState) {
+    this.islandRef = island;
     this.buildHomeCottage(island);
     this.buildSeedStall(island);
     this.buildTeahouse(island);
@@ -56,7 +73,8 @@ export class Buildings {
 
     this.group.add(this.homeRoofGroup);
     this.group.add(this.teahouseRoofGroup);
-    this.group.add(this.extraTableGroup);
+    this.group.add(this.table4Group);
+    this.group.add(this.table5Group);
     this.group.add(this.decorGroup);
     this.applyUpgrades(upgrades);
   }
@@ -456,7 +474,7 @@ export class Buildings {
       });
     }
 
-    // Bàn thứ 4 (chờ nâng cấp mở khóa)
+    // Bàn thứ 4 & Bàn thứ 5 (mở rộng lần lượt 3 -> 4 -> 5)
     const seat4 = this.tableSeats[3];
     const tbl4 = pixelArt.createYBillboard({
       textureKey: 'prop_table',
@@ -467,7 +485,7 @@ export class Buildings {
       baseYOffset: 0.032,
     });
     tbl4.group.position.set(seat4.x, 0, seat4.z);
-    this.extraTableGroup.add(tbl4.group);
+    this.table4Group.add(tbl4.group);
     this.zones.push({
       id: 'tea_table',
       label: 'Bàn Trà #4',
@@ -475,6 +493,26 @@ export class Buildings {
       z: seat4.z,
       radius: 1.45,
       tableIndex: 3,
+    });
+
+    const seat5 = this.tableSeats[4];
+    const tbl5 = pixelArt.createYBillboard({
+      textureKey: 'prop_table',
+      widthPx: 24,
+      heightPx: 24,
+      shadowScale: 1.3,
+      shadowYOffset: 0.036,
+      baseYOffset: 0.032,
+    });
+    tbl5.group.position.set(seat5.x, 0, seat5.z);
+    this.table5Group.add(tbl5.group);
+    this.zones.push({
+      id: 'tea_table',
+      label: 'Bàn Trà #5',
+      x: seat5.x,
+      z: seat5.z,
+      radius: 1.45,
+      tableIndex: 4,
     });
 
     // Biển đứng "Mở cửa / Đóng cửa" bên rìa hiên gỗ cạnh lối vào quán
@@ -495,9 +533,9 @@ export class Buildings {
     this.zones.push({
       id: 'open_sign',
       label: 'Biển Mở/Đóng Quán',
-      x: sx,
-      z: sz + 0.55,
-      radius: 1.45,
+      x: sx - 0.15,
+      z: sz + 0.35,
+      radius: 1.35,
     });
   }
 
@@ -648,6 +686,29 @@ export class Buildings {
       radius: 1.35,
     });
 
+    // Hộp bán hàng qua đêm (cạnh hông đông Nhà Ở, gần đường đá)
+    const binX = 0.45;
+    const binZ = -4.0;
+    const shippingBin = pixelArt.createYBillboard({
+      textureKey: 'prop_shipping_bin',
+      widthPx: 24,
+      heightPx: 24,
+      shadowScale: 1.25,
+      shadowYOffset: 0.032,
+      baseYOffset: 0.025,
+    });
+    shippingBin.group.position.set(binX, 0, binZ);
+    this.shippingBinMat = shippingBin.material;
+    this.group.add(shippingBin.group);
+    island.addCollider({ minX: binX - 0.48, maxX: binX + 0.48, minZ: binZ - 0.38, maxZ: binZ + 0.38 });
+    this.zones.push({
+      id: 'shipping_bin',
+      label: 'Hộp Bán Hàng Qua Đêm',
+      x: binX,
+      z: binZ + 0.7,
+      radius: 1.45,
+    });
+
     // Chảo sao trà
     const rx = this.roastWokPos.x;
     const rz = this.roastWokPos.z;
@@ -695,60 +756,106 @@ export class Buildings {
     }
   }
 
-  public applyUpgrades(upgrades: UpgradesState): void {
-    this.extraTableGroup.visible = upgrades.extraTableUnlocked;
+  private syncColliderState(box: ColliderBox, enabled: boolean): void {
+    const idx = this.islandRef.colliders.indexOf(box);
+    if (enabled && idx === -1) {
+      this.islandRef.addCollider(box);
+    } else if (!enabled && idx !== -1) {
+      this.islandRef.colliders.splice(idx, 1);
+    }
+  }
 
+  public applyUpgrades(upgrades: UpgradesState): void {
+    this.table4Group.visible = upgrades.tableCount >= 4;
+    this.table5Group.visible = upgrades.tableCount >= 5;
+    this.syncColliderState(this.table4Collider, upgrades.tableCount >= 4);
+    this.syncColliderState(this.table5Collider, upgrades.tableCount >= 5);
+  }
+
+  public syncPlacedDecors(decors: PlacedDecorState[]): void {
     while (this.decorGroup.children.length > 0) {
       this.decorGroup.remove(this.decorGroup.children[0]);
     }
+    this.decorNightGlows = [];
+    this.decorSwayProps = [];
 
-    if (upgrades.decorLanterns) {
-      for (const [x, z] of [
-        [2.2, 2.4],
-        [8.8, 2.4],
-      ]) {
+    const postMat = new THREE.MeshLambertMaterial({ color: 0x614132 });
+    decors.forEach((dec, idx) => {
+      const wx = dec.tileX + 0.5;
+      const wz = dec.tileZ + 0.5;
+
+      if (dec.itemId === 'decor_lantern') {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.96, 0.08), postMat);
+        post.position.set(wx, 0.48, wz - 0.14);
+        this.decorGroup.add(post);
+
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.24), postMat);
+        arm.position.set(wx, 0.94, wz - 0.04);
+        this.decorGroup.add(arm);
+
         const lan = pixelArt.createYBillboard({
           textureKey: 'prop_lantern',
           widthPx: 16,
           heightPx: 24,
+          shadowScale: 0.7,
+          shadowYOffset: 0.036,
+          baseYOffset: 0.28,
+        });
+        lan.group.position.set(wx, 0, wz);
+        this.decorGroup.add(lan.group);
+
+        const glowMat = new THREE.SpriteMaterial({
+          map: pixelArt.getTexture('glow_pixel'),
+          transparent: true,
+          opacity: 0,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        });
+        const glow = new THREE.Sprite(glowMat);
+        glow.position.set(wx, 0.9, wz + 0.04);
+        glow.scale.set(2.0, 2.0, 1);
+        this.decorGroup.add(glow);
+        this.decorNightGlows.push(glow);
+      } else if (dec.itemId === 'decor_wind_chime') {
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.28, 0.08), postMat);
+        post.position.set(wx, 0.64, wz - 0.14);
+        this.decorGroup.add(post);
+
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.24), postMat);
+        arm.position.set(wx, 1.24, wz - 0.04);
+        this.decorGroup.add(arm);
+
+        const chime = pixelArt.createYBillboard({
+          textureKey: 'prop_wind_chime',
+          widthPx: 16,
+          heightPx: 24,
           shadowScale: 0.65,
           shadowYOffset: 0.036,
-          baseYOffset: 0.032,
+          baseYOffset: 0.42,
         });
-        lan.group.position.set(x, 0, z);
-        this.decorGroup.add(lan.group);
-        this.addNightGlow(x, 0.95, z, 1.9);
-      }
-    }
-
-    if (upgrades.decorWindChime) {
-      const chime = pixelArt.createYBillboard({
-        textureKey: 'prop_wind_chime',
-        widthPx: 16,
-        heightPx: 24,
-        baseYOffset: 0.9,
-      });
-      chime.group.position.set(3.8, 0, -3.5);
-      this.decorGroup.add(chime.group);
-    }
-
-    if (upgrades.decorPottedPlants) {
-      for (const [x, z] of [
-        [2.4, -2.5],
-        [8.6, -2.5],
-      ]) {
+        chime.group.position.set(wx, 0, wz);
+        this.decorGroup.add(chime.group);
+        this.decorSwayProps.push({ obj: chime.group, baseZ: 0, phase: idx * 1.1 });
+      } else if (dec.itemId === 'decor_potted_plant') {
         const pot = pixelArt.createYBillboard({
           textureKey: 'prop_potted_plant',
           widthPx: 16,
           heightPx: 20,
-          shadowScale: 0.7,
+          shadowScale: 0.72,
           shadowYOffset: 0.036,
           baseYOffset: 0.032,
         });
-        pot.group.position.set(x, 0, z);
+        pot.group.position.set(wx, 0, wz);
         this.decorGroup.add(pot.group);
       }
-    }
+    });
+  }
+
+  public setShippingBinHasItems(hasItems: boolean): void {
+    this.shippingBinMat.map = pixelArt.getTexture(
+      hasItems ? 'prop_shipping_bin_full' : 'prop_shipping_bin'
+    );
+    this.shippingBinMat.needsUpdate = true;
   }
 
   public setShopOpenSign(isOpen: boolean): void {
@@ -788,11 +895,11 @@ export class Buildings {
     return '🏝️ Đảo Trà Trên Mây';
   }
 
-  public getNearestZone(px: number, pz: number, extraTableUnlocked: boolean): InteractiveZone | null {
+  public getNearestZone(px: number, pz: number, tableCount: number): InteractiveZone | null {
     let best: InteractiveZone | null = null;
     let bestDist = Infinity;
     for (const z of this.zones) {
-      if (z.tableIndex === 3 && !extraTableUnlocked) continue;
+      if (typeof z.tableIndex === 'number' && z.tableIndex >= tableCount) continue;
       const d = Math.hypot(px - z.x, pz - z.z);
       if (d <= z.radius && d < bestDist) {
         best = z;
@@ -832,6 +939,17 @@ export class Buildings {
       const mat = sp.material as THREE.SpriteMaterial;
       const flicker = 0.88 + Math.sin(elapsed * 4.5 + i) * 0.12;
       mat.opacity = nightFactor * 0.92 * flicker;
+    }
+
+    for (let i = 0; i < this.decorNightGlows.length; i++) {
+      const sp = this.decorNightGlows[i];
+      const mat = sp.material as THREE.SpriteMaterial;
+      const flicker = 0.86 + Math.sin(elapsed * 4.8 + i * 1.4) * 0.14;
+      mat.opacity = nightFactor * 0.95 * flicker;
+    }
+
+    for (const sway of this.decorSwayProps) {
+      sway.obj.rotation.z = sway.baseZ + Math.sin(elapsed * 2.5 + sway.phase) * 0.08;
     }
 
     const beamMat = this.beaconBeam.material as THREE.MeshBasicMaterial;

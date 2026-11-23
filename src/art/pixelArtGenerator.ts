@@ -857,6 +857,44 @@ class PixelArtRegistry {
       this.textures.set('prop_potted_plant', makePixelTexture(c));
     }
 
+    // Shipping bin - empty (24x24)
+    {
+      const [c, ctx] = makeCanvas(24, 24);
+      px(ctx, 3, 8, PALETTE.outlineDark, 18, 14);
+      px(ctx, 4, 9, PALETTE.woodMid, 16, 12);
+      // Lid & trim
+      px(ctx, 2, 7, PALETTE.outlineDark, 20, 4);
+      px(ctx, 3, 8, PALETTE.woodBright, 18, 2);
+      // Planks & metal bands
+      px(ctx, 5, 12, PALETTE.woodDark, 14, 1);
+      px(ctx, 5, 16, PALETTE.woodDark, 14, 1);
+      px(ctx, 6, 9, PALETTE.outlinePlum, 2, 12);
+      px(ctx, 16, 9, PALETTE.outlinePlum, 2, 12);
+      px(ctx, 10, 9, PALETTE.amberGold, 4, 3);
+      px(ctx, 11, 10, PALETTE.whiteWarm, 2, 1);
+      this.textures.set('prop_shipping_bin', makePixelTexture(c));
+    }
+
+    // Shipping bin - full with tea parcels (24x24)
+    {
+      const [c, ctx] = makeCanvas(24, 24);
+      // Bulging parcels inside
+      px(ctx, 5, 4, PALETTE.outlineDark, 14, 6);
+      px(ctx, 6, 5, PALETTE.teaGreen, 6, 4);
+      px(ctx, 12, 4, PALETTE.amberGold, 6, 5);
+      px(ctx, 13, 5, PALETTE.whiteWarm, 2, 2);
+      // Tilted open lid & crate body
+      px(ctx, 3, 9, PALETTE.outlineDark, 18, 13);
+      px(ctx, 4, 10, PALETTE.woodMid, 16, 11);
+      px(ctx, 2, 7, PALETTE.outlineDark, 20, 3);
+      px(ctx, 3, 8, PALETTE.woodBright, 18, 2);
+      px(ctx, 6, 10, PALETTE.outlinePlum, 2, 11);
+      px(ctx, 16, 10, PALETTE.outlinePlum, 2, 11);
+      px(ctx, 10, 11, PALETTE.amberGold, 4, 3);
+      px(ctx, 11, 12, PALETTE.amberWarm, 2, 1);
+      this.textures.set('prop_shipping_bin_full', makePixelTexture(c));
+    }
+
     // Elliptical pixel shadow (16x8)
     {
       const [c, ctx] = makeCanvas(16, 8);
@@ -1759,6 +1797,33 @@ class PixelArtRegistry {
         px(ctx, 9, 2, PALETTE.cloudWhite, 1, 3);
       });
     }
+
+    drawIcon('decor_lantern', (ctx) => {
+      px(ctx, 7, 1, PALETTE.outlineDark, 2, 2);
+      px(ctx, 5, 3, PALETTE.outlineDark, 6, 9);
+      px(ctx, 6, 3, PALETTE.woodDark, 4, 1);
+      px(ctx, 6, 4, PALETTE.coralRed, 4, 7);
+      px(ctx, 7, 5, PALETTE.amberGold, 2, 5);
+      px(ctx, 6, 11, PALETTE.woodDark, 4, 1);
+      px(ctx, 7, 12, PALETTE.amberWarm, 2, 2);
+    });
+
+    drawIcon('decor_potted_plant', (ctx) => {
+      px(ctx, 4, 9, PALETTE.outlineDark, 8, 6);
+      px(ctx, 3, 8, PALETTE.woodBright, 10, 2);
+      px(ctx, 5, 10, PALETTE.roofLight, 6, 4);
+      px(ctx, 5, 3, PALETTE.grassMid, 6, 5);
+      px(ctx, 4, 4, PALETTE.grassLight, 3, 4);
+      px(ctx, 9, 3, PALETTE.sakuraPink, 2, 2);
+    });
+
+    drawIcon('decor_wind_chime', (ctx) => {
+      px(ctx, 7, 1, PALETTE.woodDark, 2, 3);
+      px(ctx, 4, 4, PALETTE.outlineDark, 8, 5);
+      px(ctx, 5, 5, PALETTE.tealLight, 6, 3);
+      px(ctx, 7, 9, PALETTE.amberGold, 2, 3);
+      px(ctx, 6, 11, PALETTE.coralRed, 4, 4);
+    });
   }
 }
 

@@ -11,6 +11,8 @@ export type TeaSteepTime = 'short' | 'medium' | 'long';
 
 export type IngredientCategory = 'base' | 'addon' | 'seed' | 'tool' | 'tea' | 'decor';
 
+export type DecorItemId = 'decor_lantern' | 'decor_potted_plant' | 'decor_wind_chime';
+
 export type ItemId =
   | ToolId
   | 'seed_green_tea'
@@ -35,7 +37,8 @@ export type ItemId =
   | 'cup_mint_cool'
   | 'cup_jasmine_night'
   | 'cup_ginger_warm'
-  | 'cup_mystery_tea';
+  | 'cup_mystery_tea'
+  | DecorItemId;
 
 export interface ItemDef {
   id: ItemId;
@@ -171,9 +174,17 @@ export interface ActiveCustomer {
   waitTimer: number;
 }
 
+export interface PlacedDecorState {
+  id: string;
+  itemId: DecorItemId;
+  tileX: number;
+  tileZ: number;
+}
+
 export interface UpgradesState {
   wateringCanLevel: 1 | 2; // 1 = 1 ô, 2 = 3 ô ngang
-  extraTableUnlocked: boolean; // mở thêm bàn thứ 4
+  tableCount: 3 | 4 | 5; // mở rộng số bàn quán trà 3 -> 4 -> 5
+  extraTableUnlocked: boolean; // tương thích save cũ (tableCount >= 4)
   expandedFarmUnlocked: boolean; // mở rộng đồi trà 8x6 -> 10x6
   decorLanterns: boolean;
   decorWindChime: boolean;
@@ -187,6 +198,7 @@ export interface DailySummaryStats {
   passedOut: boolean;
   penaltyMoney: number;
   teaIncome: number;
+  shippingBinIncome: number;
   salesIncome: number;
   newRecipes: string[];
   heartGains: { name: string; gained: number; total: number }[];
@@ -209,5 +221,7 @@ export interface SaveData {
   unlockedRecipes: string[];
   relations: Record<NpcId, NpcRelationState>;
   upgrades: UpgradesState;
+  shippingBin: InventorySlot[];
+  placedDecors: PlacedDecorState[];
   introRead: boolean;
 }

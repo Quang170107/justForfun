@@ -1,24 +1,62 @@
 import { pixelArt } from '../art/pixelArtGenerator';
 import { getItemSellValue, ITEMS } from '../data/crops';
 import { GRANDMA_LETTER_LINES } from '../data/dialogues';
+import {
+  getShippingBinTotal,
+  isUpgradePurchased,
+  SHOP_DECORS,
+  SHOP_SEEDS,
+  SHOP_UPGRADES,
+  ShopUpgradeId,
+} from '../data/economy';
 import { DailySummaryStats, InventorySlot, ItemId, UpgradesState } from '../data/types';
-import { SHOP_SEEDS, SHOP_UPGRADES } from '../systems/ShopSystem';
+
+export type ShopTabKind = 'seeds' | 'decor' | 'upgrades';
 
 export class ShopAndMenuModal {
+  public shopTab: ShopTabKind = 'seeds';
+
+  private renderBuyItemCard(
+    id: ItemId,
+    money: number,
+    onBuyItem: (itemId: ItemId) => void
+  ): HTMLElement {
+    const def = ITEMS[id];
+    const price = def.buyPrice ?? 20;
+    const card = document.createElement('div');
+    card.className = 'card-box';
+    card.innerHTML = `
+      <div class="card-top">
+        <img src="${pixelArt.getIconUrl(def.iconKey)}" />
+        <div style="flex:1;">
+          <strong>${def.name}</strong>
+          <div style="font-size:12px;">${def.description}</div>
+        </div>
+      </div>
+    `;
+    const btn = document.createElement('button');
+    btn.className = 'pixel-btn small primary';
+    btn.textContent = `Mua 1 (${price} Xu Mây)`;
+    btn.disabled = money < price;
+    btn.onclick = () => onBuyItem(id);
+    card.appendChild(btn);
+    return card;
+  }
+
   public renderShop(
     modalBox: HTMLElement,
     money: number,
     inventory: (InventorySlot | null)[],
     upgrades: UpgradesState,
     onBuyItem: (itemId: ItemId) => void,
-    onBuyUpgrade: (upgradeId: keyof UpgradesState, price: number) => void,
+    onBuyUpgrade: (upgradeId: ShopUpgradeId, price: number) => void,
     onSellSlot: (slotIdx: number) => void,
     onClose: () => void
   ): void {
     modalBox.innerHTML = '';
     const header = document.createElement('div');
     header.className = 'modal-header';
-    header.innerHTML = `<h2>🌱 Sạp Hạt Giống Bé Sương &nbsp;|&nbsp; 🪙 ${money} Xu Mây</h2>`;
+    header.innerHTML = `<h2>🌱 Sạp Bé Sương (08:00–18:00) &nbsp;|&nbsp; 🪙 ${money} Xu Mây</h2>`;
     const closeBtn = document.createElement('button');
     closeBtn.className = 'pixel-btn small';
     closeBtn.textContent = 'Đóng (Esc)';
@@ -26,67 +64,75 @@ export class ShopAndMenuModal {
     header.appendChild(closeBtn);
     modalBox.appendChild(header);
 
-    const sec1 = document.createElement('h3');
-    sec1.style.margin = '0 0 8px';
-    sec1.textContent = 'Hạt Giống & Mật Ong';
-    modalBox.appendChild(sec1);
-
-    const seedList = document.createElement('div');
-    seedList.className = 'shop-list';
-    for (const id of SHOP_SEEDS) {
-      const def = ITEMS[id];
-      const price = def.buyPrice ?? 20;
-      const card = document.createElement('div');
-      card.className = 'card-box';
-      card.innerHTML = `
-        <div class="card-top">
-          <img src="${pixelArt.getIconUrl(def.iconKey)}" />
-          <div style="flex:1;">
-            <strong>${def.name}</strong>
-            <div style="font-size:12px;">${def.description}</div>
-          </div>
-        </div>
-      `;
-      const btn = document.createElement('button');
-      btn.className = 'pixel-btn small primary';
-      btn.textContent = `Mua (${price} Xu Mây)`;
-      btn.disabled = money < price;
-      btn.onclick = () => {
-        onBuyItem(id);
-        this.renderShop(modalBox, money - price >= 0 ? money : money, inventory, upgrades, onBuyItem, onBuyUpgrade, onSellSlot, onClose);
+    const tabRow = document.createElement('div');
+    tabRow.className = 'tab-row';
+    const tabs: { id: ShopTabKind; label: string }[] = [
+      { id: 'seeds', label: '🌱 Hạt Giống & Mật' },
+      { id: 'decor', label: '🏮 Đồ Trang Trí' },
+      { id: 'upgrades', label: '⬆️ Nâng Cấp' },
+    ];
+    for (const t of tabs) {
+      const tBtn = document.createElement('button');
+      tBtn.className = `pixel-btn small ${this.shopTab === t.id ? 'primary' : ''}`;
+      tBtn.textContent = t.label;
+      tBtn.onclick = () => {
+        this.shopTab = t.id;
+        this.renderShop(modalBox, money, inventory, upgrades, onBuyItem, onBuyUpgrade, onSellSlot, onClose);
       };
-      card.appendChild(btn);
-      seedList.appendChild(card);
+      tabRow.appendChild(tBtn);
     }
-    modalBox.appendChild(seedList);
+    modalBox.appendChild(tabRow);
 
-    const sec2 = document.createElement('h3');
-    sec2.style.margin = '16px 0 8px';
-    sec2.textContent = 'Nâng Cấp & Trang Trí Quán';
-    modalBox.appendChild(sec2);
+    if (this.shopTab === 'seeds') {
+      const list = document.createElement('div');
+      list.className = 'shop-list';
+      for (const id of SHOP_SEEDS) {
+        list.appendChild(this.renderBuyItemCard(id, money, onBuyItem));
+      }
+      modalBox.appendChild(list);
+    } else if (this.shopTab === 'decor') {
+      const hint = document.createElement('div');
+      hint.className = 'card-box';
+      hint.style.marginBottom = '10px';
+      hint.innerHTML = `<div style="font-size:13px;">💡 Mua đồ trang trí vào túi, chọn trên thanh hotbar rồi nhấn <b>Space / Click</b> ngoài sân hoặc hiên quán để bài trí. Dùng <b>Giỏ thu hoạch</b> để thu hồi lại.</div>`;
+      modalBox.appendChild(hint);
 
-    const upgList = document.createElement('div');
-    upgList.className = 'shop-list';
-    for (const u of SHOP_UPGRADES) {
-      const owned =
-        u.id === 'wateringCanLevel' ? upgrades.wateringCanLevel >= 2 : Boolean(upgrades[u.id]);
-      const card = document.createElement('div');
-      card.className = 'card-box';
-      card.innerHTML = `
-        <strong>${u.name}</strong>
-        <div style="font-size:12px;">${u.description}</div>
-      `;
-      const btn = document.createElement('button');
-      btn.className = `pixel-btn small ${owned ? '' : 'primary'}`;
-      btn.textContent = owned ? '✓ Đã sở hữu' : `Nâng cấp (${u.price} Xu)`;
-      btn.disabled = owned || money < u.price;
-      btn.onclick = () => onBuyUpgrade(u.id, u.price);
-      card.appendChild(btn);
-      upgList.appendChild(card);
+      const list = document.createElement('div');
+      list.className = 'shop-list';
+      for (const id of SHOP_DECORS) {
+        list.appendChild(this.renderBuyItemCard(id, money, onBuyItem));
+      }
+      modalBox.appendChild(list);
+    } else {
+      const upgList = document.createElement('div');
+      upgList.className = 'shop-list';
+      for (const u of SHOP_UPGRADES) {
+        const owned = isUpgradePurchased(u.id, upgrades);
+        const missingReq = u.requires ? !isUpgradePurchased(u.requires, upgrades) : false;
+        const card = document.createElement('div');
+        card.className = 'card-box';
+        card.innerHTML = `
+          <strong>${u.name}</strong>
+          <div style="font-size:12px;">${u.description}</div>
+        `;
+        const btn = document.createElement('button');
+        btn.className = `pixel-btn small ${owned || missingReq ? '' : 'primary'}`;
+        if (owned) {
+          btn.textContent = '✓ Đã nâng cấp';
+        } else if (missingReq) {
+          btn.textContent = '🔒 Cần mở Bàn Thứ 4 trước';
+        } else {
+          btn.textContent = `Nâng cấp (${u.price} Xu Mây)`;
+        }
+        btn.disabled = owned || missingReq || money < u.price;
+        btn.onclick = () => onBuyUpgrade(u.id, u.price);
+        card.appendChild(btn);
+        upgList.appendChild(card);
+      }
+      modalBox.appendChild(upgList);
     }
-    modalBox.appendChild(upgList);
 
-    // Bán nhanh nông sản hoặc trà dư
+    // Bán nhanh vật phẩm tại quầy nếu cần Xu ngay
     const sellable: { idx: number; slot: InventorySlot }[] = [];
     inventory.forEach((s, idx) => {
       if (s && ITEMS[s.itemId].sellPrice > 0) sellable.push({ idx, slot: s });
@@ -95,7 +141,7 @@ export class ShopAndMenuModal {
     if (sellable.length > 0) {
       const sec3 = document.createElement('h3');
       sec3.style.margin = '16px 0 8px';
-      sec3.textContent = 'Bán Vật Phẩm (Nhận Xu Mây ngay)';
+      sec3.textContent = 'Bán Nhanh Tại Sạp (Nhận Xu Mây ngay)';
       modalBox.appendChild(sec3);
 
       const sellRow = document.createElement('div');
@@ -103,7 +149,10 @@ export class ShopAndMenuModal {
       for (const { idx, slot } of sellable) {
         const def = ITEMS[slot.itemId];
         const val = getItemSellValue(slot.itemId, slot.quality);
-        const starTag = def.category !== 'seed' && def.category !== 'tool' ? ` ${'★'.repeat(slot.quality)}` : '';
+        const starTag =
+          def.category !== 'seed' && def.category !== 'tool' && def.category !== 'decor'
+            ? ` ${'★'.repeat(slot.quality)}`
+            : '';
         const btn = document.createElement('button');
         btn.className = 'choice-chip';
         btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> Bán 1 ${def.name}${starTag} (+${val} Xu)`;
@@ -111,6 +160,99 @@ export class ShopAndMenuModal {
         sellRow.appendChild(btn);
       }
       modalBox.appendChild(sellRow);
+    }
+  }
+
+  public renderShippingBin(
+    modalBox: HTMLElement,
+    binSlots: InventorySlot[],
+    inventory: (InventorySlot | null)[],
+    onDepositSlot: (slotIdx: number) => void,
+    onWithdrawBin: (binIdx: number) => void,
+    onClose: () => void
+  ): void {
+    const estimatedTotal = getShippingBinTotal(binSlots);
+    modalBox.innerHTML = '';
+
+    const header = document.createElement('div');
+    header.className = 'modal-header';
+    header.innerHTML = `<h2>📦 Hộp Bán Hàng Qua Đêm &nbsp;|&nbsp; Dự kiến: +${estimatedTotal} Xu Mây</h2>`;
+    const closeBtn = document.createElement('button');
+    closeBtn.className = 'pixel-btn small';
+    closeBtn.textContent = 'Đóng (Esc)';
+    closeBtn.onclick = onClose;
+    header.appendChild(closeBtn);
+    modalBox.appendChild(header);
+
+    const tipBox = document.createElement('div');
+    tipBox.className = 'card-box';
+    tipBox.style.marginBottom = '12px';
+    tipBox.innerHTML = `<div style="font-size:13px;">🌙 Ký gửi nông sản, lá trà đã sơ chế, tách trà hoặc đồ trang trí vào hộp. Thương buôn tầng mây sẽ thanh toán tự động khi bạn ngủ sang ngày mới!</div>`;
+    modalBox.appendChild(tipBox);
+
+    const secBin = document.createElement('h3');
+    secBin.style.margin = '0 0 8px';
+    secBin.textContent = 'Hàng Đang Chờ Giao Đêm Nay (Nhấn để lấy lại)';
+    modalBox.appendChild(secBin);
+
+    if (binSlots.length === 0) {
+      const emptyEl = document.createElement('div');
+      emptyEl.style.fontSize = '13px';
+      emptyEl.style.marginBottom = '14px';
+      emptyEl.textContent = 'Hộp đang trống — hãy chọn vật phẩm trong túi bên dưới để ký gửi.';
+      modalBox.appendChild(emptyEl);
+    } else {
+      const binGrid = document.createElement('div');
+      binGrid.className = 'chip-grid';
+      binGrid.style.marginBottom = '14px';
+      binSlots.forEach((slot, binIdx) => {
+        const def = ITEMS[slot.itemId];
+        const unitVal = getItemSellValue(slot.itemId, slot.quality);
+        const starTag =
+          def.category !== 'seed' && def.category !== 'tool' && def.category !== 'decor'
+            ? ` ${'★'.repeat(slot.quality)}`
+            : '';
+        const btn = document.createElement('button');
+        btn.className = 'choice-chip';
+        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> ${def.name}${starTag} ×${slot.count} (+${unitVal * slot.count} Xu) ↩️`;
+        btn.onclick = () => onWithdrawBin(binIdx);
+        binGrid.appendChild(btn);
+      });
+      modalBox.appendChild(binGrid);
+    }
+
+    const secBag = document.createElement('h3');
+    secBag.style.margin = '0 0 8px';
+    secBag.textContent = 'Ký Gửi Từ Túi Đồ (Nhấn để bỏ 1 món vào hộp)';
+    modalBox.appendChild(secBag);
+
+    const sellable: { idx: number; slot: InventorySlot }[] = [];
+    inventory.forEach((s, idx) => {
+      if (s && ITEMS[s.itemId].sellPrice > 0) sellable.push({ idx, slot: s });
+    });
+
+    if (sellable.length === 0) {
+      const emptyBag = document.createElement('div');
+      emptyBag.style.fontSize = '13px';
+      emptyBag.textContent = 'Túi đồ hiện không có nông sản hay vật phẩm bán được.';
+      modalBox.appendChild(emptyBag);
+    } else {
+      const bagGrid = document.createElement('div');
+      bagGrid.className = 'chip-grid';
+      for (const { idx, slot } of sellable) {
+        const def = ITEMS[slot.itemId];
+        const val = getItemSellValue(slot.itemId, slot.quality);
+        const starTag =
+          def.category !== 'seed' && def.category !== 'tool' && def.category !== 'decor'
+            ? ` ${'★'.repeat(slot.quality)}`
+            : '';
+        const btn = document.createElement('button');
+        btn.className = 'choice-chip';
+        btn.innerHTML = `<img src="${pixelArt.getIconUrl(def.iconKey)}" /> Gửi 1 ${def.name}${starTag} (còn ${slot.count}) • +${val} Xu`;
+        btn.onclick = () => onDepositSlot(idx);
+        bagGrid.appendChild(btn);
+      }
+      modalBox.appendChild(bagGrid);
     }
   }
 
@@ -213,7 +355,7 @@ export class ShopAndMenuModal {
     currentMoney: number,
     onContinue: () => void
   ): void {
-    const netTotal = stats.teaIncome + stats.salesIncome - stats.penaltyMoney;
+    const netTotal = stats.teaIncome + stats.shippingBinIncome + stats.salesIncome - stats.penaltyMoney;
     const weatherText =
       stats.nextWeather === 'sunny'
         ? '☀️ Nắng ấm'
@@ -248,7 +390,8 @@ export class ShopAndMenuModal {
       }
       <div class="card-box" style="margin-bottom:12px;">
         <div class="summary-row"><span>🍵 Thu nhập phục vụ trà:</span><b>+${stats.teaIncome} Xu Mây</b></div>
-        <div class="summary-row"><span>🧺 Thu nhập bán nông sản/khác:</span><b>+${stats.salesIncome} Xu Mây</b></div>
+        <div class="summary-row"><span>📦 Thu nhập Hộp Bán Hàng Qua Đêm:</span><b>+${stats.shippingBinIncome} Xu Mây</b></div>
+        <div class="summary-row"><span>🧺 Thu nhập bán trực tiếp tại sạp:</span><b>+${stats.salesIncome} Xu Mây</b></div>
         ${
           stats.penaltyMoney > 0
             ? `<div class="summary-row" style="color:#8e2f2f;"><span>🏮 Phí ngủ gục quá 24:00:</span><b>-${stats.penaltyMoney} Xu Mây</b></div>`

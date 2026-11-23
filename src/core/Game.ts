@@ -3,6 +3,13 @@ import { PALETTE } from '../art/palette';
 import { CAMERA_ELEVATION_RAD, PIXELS_PER_UNIT, pixelArt } from '../art/pixelArtGenerator';
 import { DRYING_OUTPUT_MAP, getItemSellValue, ITEMS } from '../data/crops';
 import { GUEST_PROFILES } from '../data/customers';
+import {
+  getShippingBinTotal,
+  isDecorItemId,
+  isDecorTileInAllowedZone,
+  isSeedShopOpen,
+  ShopUpgradeId,
+} from '../data/economy';
 import { NPCS } from '../data/npcs';
 import {
   DailySummaryStats,
@@ -11,6 +18,7 @@ import {
   ItemId,
   MemoryCutscene,
   NpcId,
+  PlacedDecorState,
   SaveData,
   TeaSteepTime,
   TeaWaterTemp,
@@ -76,6 +84,8 @@ export class Game {
   private inventory: (InventorySlot | null)[];
   private selectedHotbarIndex: number;
   private upgrades: UpgradesState;
+  private shippingBin: InventorySlot[] = [];
+  private placedDecors: PlacedDecorState[] = [];
   private introRead: boolean;
 
   private cameraYawStep = 0; // 0, 1, 2, 3 (90 deg steps)
@@ -123,6 +133,8 @@ export class Game {
     this.inventory = loaded.inventory;
     this.selectedHotbarIndex = loaded.selectedHotbarIndex;
     this.upgrades = { ...loaded.upgrades };
+    this.shippingBin = loaded.shippingBin.map((s) => ({ ...s }));
+    this.placedDecors = loaded.placedDecors.map((d) => ({ ...d }));
     this.introRead = loaded.introRead;
     this.time.day = loaded.day;
     this.time.season = loaded.season;
@@ -179,6 +191,8 @@ export class Game {
     this.scene.add(this.tiles.group);
 
     this.buildings = new Buildings(this.island, this.upgrades);
+    this.buildings.syncPlacedDecors(this.placedDecors);
+    this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
     this.scene.add(this.buildings.group);
 
     this.weather = new WeatherSystem(loaded.weather);
@@ -277,6 +291,8 @@ export class Game {
     this.inventory = data.inventory.map((s) => (s ? { ...s } : null));
     this.selectedHotbarIndex = data.selectedHotbarIndex;
     this.upgrades = { ...data.upgrades };
+    this.shippingBin = data.shippingBin.map((s) => ({ ...s }));
+    this.placedDecors = data.placedDecors.map((d) => ({ ...d }));
     this.introRead = data.introRead;
     this.time.day = data.day;
     this.time.season = data.season;
@@ -285,6 +301,8 @@ export class Game {
 
     this.tiles.loadPlots(data.plots, this.upgrades.expandedFarmUnlocked);
     this.buildings.applyUpgrades(this.upgrades);
+    this.buildings.syncPlacedDecors(this.placedDecors);
+    this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
     this.processing = new ProcessingSystem(data.dryingRack);
     this.buildings.setDryingRackState(this.processing.getVisualState());
     this.brewing = new BrewingSystem(data.unlockedRecipes);
@@ -564,12 +582,28 @@ export class Game {
         else if (heldId === 'watering_can' && p.tilled) canAct = true;
         else if (heldId?.startsWith('seed_') && p.tilled && !p.cropId) canAct = true;
       }
+    } else if (isDecorItemId(heldId)) {
+      canAct = this.canPlaceDecorAt(tx, tz);
+    } else if (heldId === 'basket' && this.placedDecors.some((d) => d.tileX === tx && d.tileZ === tz)) {
+      canAct = true;
     }
     const desiredTex = pixelArt.getTexture(canAct ? 'tile_cursor_action' : 'tile_cursor_default');
     if (this.tileCursorMat.map !== desiredTex) {
       this.tileCursorMat.map = desiredTex;
       this.tileCursorMat.needsUpdate = true;
     }
+  }
+
+  private canPlaceDecorAt(tileX: number, tileZ: number): boolean {
+    if (!isDecorTileInAllowedZone(tileX, tileZ)) return false;
+    if (Math.floor(this.player.x) === tileX && Math.floor(this.player.z) === tileZ) return false;
+    if (this.placedDecors.some((d) => d.tileX === tileX && d.tileZ === tileZ)) return false;
+    const wx = tileX + 0.5;
+    const wz = tileZ + 0.5;
+    if (this.island.isBlocked(wx, wz, 0.25)) return false;
+    if (this.buildings.zones.some((z) => Math.hypot(wx - z.x, wz - z.z) < 0.72)) return false;
+    if (this.buildings.tableSeats.some((s) => Math.hypot(wx - s.x, wz - s.z) < 0.85)) return false;
+    return true;
   }
 
   private handleGlobalInput(): void {
@@ -740,7 +774,7 @@ export class Game {
       dt,
       activelyOpen,
       this.customers.map((c) => c.data),
-      this.upgrades.extraTableUnlocked
+      this.upgrades.tableCount
     );
     if (spawned) {
       const seatPos = this.buildings.tableSeats[spawned.seatIndex];
@@ -842,9 +876,24 @@ export class Game {
     const zone = this.buildings.getNearestZone(
       this.player.x,
       this.player.z,
-      this.upgrades.extraTableUnlocked
+      this.upgrades.tableCount
     );
     if (zone && zone.id !== 'tea_table') {
+      if (zone.id === 'seed_shop') {
+        if (isSeedShopOpen(this.time.timeMinutes)) {
+          this.ui.hud.setPrompt('Mở Sạp Hạt Giống & Nâng Cấp Bé Sương');
+        } else {
+          this.ui.hud.setPrompt('Sạp Bé Sương đóng cửa (mở 08:00–18:00)');
+        }
+        return;
+      }
+      if (zone.id === 'shipping_bin') {
+        const est = getShippingBinTotal(this.shippingBin);
+        this.ui.hud.setPrompt(
+          est > 0 ? `Mở Hộp Bán Hàng (Dự kiến +${est} Xu)` : 'Hộp Bán Hàng Qua Đêm'
+        );
+        return;
+      }
       if (zone.id === 'drying_rack') {
         const readyCount = this.processing.getReadyCount();
         const held = this.getHeldSlot();
@@ -878,10 +927,10 @@ export class Game {
 
     // Kiểm tra ô đất mục tiêu (trước mặt hoặc theo con trỏ chuột)
     const { gx, gy } = this.tiles.worldToGrid(this.targetTileX + 0.5, this.targetTileZ + 0.5);
+    const held = this.getHeldSlot();
+    const heldId = held?.itemId ?? null;
     if (this.tiles.isPlotAccessible(gx, gy)) {
       const plot = this.tiles.getPlot(gx, gy);
-      const held = this.getHeldSlot();
-      const heldId = held?.itemId ?? null;
       if (plot?.cropId && plot.stage === 3) {
         this.ui.hud.setPrompt('Thu hoạch cây chín');
         return;
@@ -896,6 +945,21 @@ export class Game {
       }
       if (plot && plot.tilled && !plot.watered && heldId === 'watering_can') {
         this.ui.hud.setPrompt('Tưới nước');
+        return;
+      }
+    } else if (isDecorItemId(heldId)) {
+      this.ui.hud.setPrompt(
+        this.canPlaceDecorAt(this.targetTileX, this.targetTileZ)
+          ? `Đặt ${ITEMS[heldId].name}`
+          : 'Không thể đặt đồ trang trí ở đây'
+      );
+      return;
+    } else if (heldId === 'basket') {
+      const existing = this.placedDecors.find(
+        (d) => d.tileX === this.targetTileX && d.tileZ === this.targetTileZ
+      );
+      if (existing) {
+        this.ui.hud.setPrompt(`Thu hồi ${ITEMS[existing.itemId].name}`);
         return;
       }
     }
@@ -1053,14 +1117,25 @@ export class Game {
     const zone = this.buildings.getNearestZone(
       this.player.x,
       this.player.z,
-      this.upgrades.extraTableUnlocked
+      this.upgrades.tableCount
     );
     if (zone && zone.id !== 'tea_table') {
       if (zone.id === 'sleep_door') {
         this.triggerSleep(false);
         return;
       }
+      if (zone.id === 'shipping_bin') {
+        this.openShippingBinModal();
+        return;
+      }
       if (zone.id === 'seed_shop') {
+        if (!isSeedShopOpen(this.time.timeMinutes)) {
+          this.audio.playBlip(280);
+          this.ui.hud.showToast(
+            '⏰ Sạp Bé Sương chỉ mở từ 08:00 đến 18:00! (Nhấn F5 để tua giờ thử nhanh)'
+          );
+          return;
+        }
         this.openShopModal();
         return;
       }
@@ -1086,12 +1161,52 @@ export class Game {
       }
     }
 
-    // 4. Hành động trồng trọt & dùng công cụ tại ô mục tiêu (hoặc ô dưới chân)
+    // 4. Hành động trồng trọt, đặt/thu đồ trang trí & dùng công cụ tại ô mục tiêu
     if (this.player.isPerformingAction()) return;
     const held = this.getHeldSlot();
     const heldId = held ? held.itemId : null;
     const targetX = overrideX ?? this.targetTileX + 0.5;
     const targetZ = overrideZ ?? this.targetTileZ + 0.5;
+    const targetTileX = Math.floor(targetX);
+    const targetTileZ = Math.floor(targetZ);
+
+    if (heldId === 'basket') {
+      const decIdx = this.placedDecors.findIndex(
+        (d) => d.tileX === targetTileX && d.tileZ === targetTileZ
+      );
+      if (decIdx !== -1) {
+        const dec = this.placedDecors[decIdx];
+        if (!this.addItem(dec.itemId, 1, 1)) {
+          this.ui.hud.showToast('Túi đồ đã đầy, không thể thu hồi đồ trang trí!');
+          return;
+        }
+        this.placedDecors.splice(decIdx, 1);
+        this.buildings.syncPlacedDecors(this.placedDecors);
+        this.audio.playHarvest();
+        this.ui.hud.showToast(`🧺 Đã thu hồi ${ITEMS[dec.itemId].name} về túi!`);
+        return;
+      }
+    }
+
+    if (isDecorItemId(heldId)) {
+      if (!this.canPlaceDecorAt(targetTileX, targetTileZ)) {
+        this.audio.playBlip(280);
+        this.ui.hud.showToast('Không thể đặt đồ trang trí ở đây (chọn sân, lối đi hoặc hiên quán trống)!');
+        return;
+      }
+      this.consumeAtSlot(this.selectedHotbarIndex, 1);
+      this.placedDecors.push({
+        id: `dec_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        itemId: heldId,
+        tileX: targetTileX,
+        tileZ: targetTileZ,
+      });
+      this.buildings.syncPlacedDecors(this.placedDecors);
+      this.weather.spawnBurst(targetTileX + 0.5, 0.5, targetTileZ + 0.5, PALETTE.amberGold, 8);
+      this.audio.playChime();
+      this.ui.hud.showToast(`✨ Đã đặt ${ITEMS[heldId].name}!`);
+      return;
+    }
 
     const onHarvestVisual = (harvestItemId: ItemId, wx: number, wz: number) => {
       this.spawnWorldFlyingItem(ITEMS[harvestItemId].iconKey, wx, 0.9, wz);
@@ -1378,11 +1493,24 @@ export class Game {
           this.ui.hud.showToast(`Đã mua ${ITEMS[itemId].name}!`);
           rerender();
         },
-        (upgradeId, price) => {
+        (upgradeId: ShopUpgradeId, price: number) => {
           if (this.money < price) return;
+          if (upgradeId === 'wateringCanLevel') {
+            if (this.upgrades.wateringCanLevel >= 2) return;
+            this.upgrades.wateringCanLevel = 2;
+          } else if (upgradeId === 'table4') {
+            if (this.upgrades.tableCount >= 4) return;
+            this.upgrades.tableCount = 4;
+            this.upgrades.extraTableUnlocked = true;
+          } else if (upgradeId === 'table5') {
+            if (this.upgrades.tableCount < 4 || this.upgrades.tableCount >= 5) return;
+            this.upgrades.tableCount = 5;
+            this.upgrades.extraTableUnlocked = true;
+          } else if (upgradeId === 'expandedFarmUnlocked') {
+            if (this.upgrades.expandedFarmUnlocked) return;
+            this.upgrades.expandedFarmUnlocked = true;
+          }
           this.money -= price;
-          if (upgradeId === 'wateringCanLevel') this.upgrades.wateringCanLevel = 2;
-          else this.upgrades[upgradeId] = true;
           this.buildings.applyUpgrades(this.upgrades);
           this.tiles.setExpandedUnlocked(this.upgrades.expandedFarmUnlocked);
           this.audio.playChime();
@@ -1398,6 +1526,49 @@ export class Game {
           this.dailySalesIncome += val;
           this.audio.playCoin();
           this.ui.hud.showToast(`+${val} Xu Mây`);
+          rerender();
+        },
+        () => this.ui.closeModal()
+      );
+    rerender();
+  }
+
+  private openShippingBinModal(): void {
+    this.ui.openModal('shipping_bin');
+    const rerender = () =>
+      this.ui.shopMenuModal.renderShippingBin(
+        this.ui.modalBox,
+        this.shippingBin,
+        this.inventory,
+        (slotIdx) => {
+          const s = this.inventory[slotIdx];
+          if (!s || ITEMS[s.itemId].sellPrice <= 0) return;
+          const existing = this.shippingBin.find(
+            (b) => b.itemId === s.itemId && b.quality === s.quality
+          );
+          if (existing) {
+            existing.count += 1;
+          } else {
+            this.shippingBin.push({ itemId: s.itemId, count: 1, quality: s.quality });
+          }
+          this.consumeAtSlot(slotIdx, 1);
+          this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
+          this.audio.playCoin();
+          rerender();
+        },
+        (binIdx) => {
+          const b = this.shippingBin[binIdx];
+          if (!b) return;
+          if (!this.addItem(b.itemId, 1, b.quality)) {
+            this.ui.hud.showToast('Túi đồ đã đầy!');
+            return;
+          }
+          b.count -= 1;
+          if (b.count <= 0) {
+            this.shippingBin.splice(binIdx, 1);
+          }
+          this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
+          this.audio.playBlip(440);
           rerender();
         },
         () => this.ui.closeModal()
@@ -1482,6 +1653,13 @@ export class Game {
 
       const dayFinished = this.time.day;
       const seasonFinished = this.time.season;
+      const shippingBinIncome = getShippingBinTotal(this.shippingBin);
+      if (shippingBinIncome > 0) {
+        this.money += shippingBinIncome;
+      }
+      this.shippingBin = [];
+      this.buildings.setShippingBinHasItems(false);
+
       const penaltyMoney = passedOut ? Math.min(50, Math.floor(this.money * 0.1)) : 0;
       if (penaltyMoney > 0) {
         this.money = Math.max(0, this.money - penaltyMoney);
@@ -1527,6 +1705,7 @@ export class Game {
         passedOut,
         penaltyMoney,
         teaIncome: this.dailyTeaIncome,
+        shippingBinIncome,
         salesIncome: this.dailySalesIncome,
         newRecipes: [...this.dailyNewRecipes],
         heartGains,
@@ -1565,6 +1744,8 @@ export class Game {
       unlockedRecipes: Array.from(this.brewing.unlockedRecipes),
       relations: this.relations.relations,
       upgrades: this.upgrades,
+      shippingBin: this.shippingBin,
+      placedDecors: this.placedDecors,
       introRead: this.introRead,
     };
     const ok = this.saveSystem.save(data);

@@ -9,64 +9,8 @@ import {
   ItemId,
   MemoryCutscene,
   NpcId,
-  UpgradesState,
 } from '../data/types';
 import { RelationshipSystem } from './RelationshipSystem';
-
-export interface ShopUpgradeItem {
-  id: keyof UpgradesState;
-  name: string;
-  price: number;
-  description: string;
-}
-
-export const SHOP_SEEDS: ItemId[] = [
-  'seed_green_tea',
-  'seed_chrysanthemum',
-  'seed_mint',
-  'seed_jasmine',
-  'seed_ginger',
-  'honey',
-];
-
-export const SHOP_UPGRADES: ShopUpgradeItem[] = [
-  {
-    id: 'wateringCanLevel',
-    name: 'Nâng cấp Bình Tưới Đồng (3 ô)',
-    price: 180,
-    description: 'Tưới một lúc 3 ô đất liền kề nhau.',
-  },
-  {
-    id: 'extraTableUnlocked',
-    name: 'Thêm Bàn Trà Gỗ Thứ 4',
-    price: 220,
-    description: 'Đón nhiều khách hơn cùng lúc trong quán buổi chiều.',
-  },
-  {
-    id: 'expandedFarmUnlocked',
-    name: 'Mở Rộng Đồi Trà (10×6 ô)',
-    price: 260,
-    description: 'Mở khóa thêm 12 ô đất trồng trà ở phía đông đồi.',
-  },
-  {
-    id: 'decorLanterns',
-    name: 'Đèn Lồng Hiên Quán',
-    price: 110,
-    description: 'Trang trí thêm cặp đèn lồng đỏ tỏa sáng ấm áp về đêm.',
-  },
-  {
-    id: 'decorWindChime',
-    name: 'Chuông Gió Gốm Mây',
-    price: 90,
-    description: 'Treo chuông gió trước hiên quán mang lại cảm giác thư thái.',
-  },
-  {
-    id: 'decorPottedPlants',
-    name: 'Chậu Hoa Nhỏ Quán Trà',
-    price: 100,
-    description: 'Hai chậu hoa nhỏ xinh trang trí hai bên quầy pha trà.',
-  },
-];
 
 export class ShopSystem {
   public customersSpawnedToday = 0;
@@ -118,14 +62,14 @@ export class ShopSystem {
     dt: number,
     isActivelyOpen: boolean,
     activeCustomers: ActiveCustomer[],
-    extraTableUnlocked: boolean
+    tableCount: number
   ): ActiveCustomer | null {
     if (!isActivelyOpen) return null;
     if (this.customersSpawnedToday >= this.maxCustomersToday) return null;
 
-    const maxSeats = extraTableUnlocked ? 4 : 3;
+    const maxSeats = Math.max(3, Math.min(5, tableCount));
     const occupiedSeats = new Set(activeCustomers.map((c) => c.seatIndex));
-    const freeSeat = [0, 1, 2, 3].slice(0, maxSeats).find((idx) => !occupiedSeats.has(idx));
+    const freeSeat = [0, 1, 2, 3, 4].slice(0, maxSeats).find((idx) => !occupiedSeats.has(idx));
     if (freeSeat === undefined) return null;
 
     this.spawnCooldown -= dt;

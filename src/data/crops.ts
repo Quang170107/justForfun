@@ -304,6 +304,36 @@ export const ITEMS: Record<ItemId, ItemDef> = {
     iconKey: 'cup_mystery',
     stackable: true,
   },
+  decor_lantern: {
+    id: 'decor_lantern',
+    name: 'Đèn Lồng Đỏ Ấm Áp',
+    description: 'Đèn lồng tre giấy đỏ phát sáng dịu êm khi trời ngả tối. Có thể đặt ngoài sân hoặc hiên quán.',
+    category: 'decor',
+    sellPrice: 45,
+    buyPrice: 90,
+    iconKey: 'decor_lantern',
+    stackable: true,
+  },
+  decor_potted_plant: {
+    id: 'decor_potted_plant',
+    name: 'Chậu Hoa Trà Nhỏ',
+    description: 'Chậu gốm trồng khóm trà cúc xanh mướt tô điểm không gian đảo.',
+    category: 'decor',
+    sellPrice: 35,
+    buyPrice: 70,
+    iconKey: 'decor_potted_plant',
+    stackable: true,
+  },
+  decor_wind_chime: {
+    id: 'decor_wind_chime',
+    name: 'Chuông Gió Gốm Mây',
+    description: 'Cột chuông gió khẽ đung đưa mỗi khi có làn gió tầng mây thổi qua.',
+    category: 'decor',
+    sellPrice: 40,
+    buyPrice: 80,
+    iconKey: 'decor_wind_chime',
+    stackable: true,
+  },
 };
 
 export const DRYING_OUTPUT_MAP: Partial<Record<ItemId, ItemId>> = {

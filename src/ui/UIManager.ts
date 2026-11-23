@@ -37,6 +37,7 @@ export class UIManager {
     | 'brewing'
     | 'roast'
     | 'shop'
+    | 'shipping_bin'
     | 'menu'
     | 'settings'
     | 'day_summary'
@@ -122,7 +123,9 @@ export class UIManager {
   public showTooltip(slot: InventorySlot, clientX: number, clientY: number): void {
     const def = ITEMS[slot.itemId];
     this.tooltipTitle.textContent = def.name;
-    if (def.category !== 'tool' && def.category !== 'seed') {
+    if (def.category === 'decor') {
+      this.tooltipQuality.textContent = `Đồ trang trí • Giá bán hộp hàng: ${def.sellPrice} Xu`;
+    } else if (def.category !== 'tool' && def.category !== 'seed') {
       const sellPart = def.sellPrice > 0 ? ` • Giá bán: ${getItemSellValue(slot.itemId, slot.quality)} Xu` : '';
       this.tooltipQuality.textContent = `Chất lượng: ${'★'.repeat(slot.quality)} (${getQualityLabel(slot.quality)})${sellPart}`;
     } else {

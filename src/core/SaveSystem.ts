@@ -1,7 +1,7 @@
 import { DryingSlotState, InventorySlot, SaveData, TilePlotState } from '../data/types';
 
 const SAVE_KEY = 'tra_quan_tren_may_save_v1';
-export const CURRENT_SAVE_VERSION = 2;
+export const CURRENT_SAVE_VERSION = 3;
 
 export const FARM_ORIGIN_X = -10;
 export const FARM_ORIGIN_Z = 0;
@@ -70,12 +70,15 @@ export function createDefaultSave(): SaveData {
     },
     upgrades: {
       wateringCanLevel: 1,
+      tableCount: 3,
       extraTableUnlocked: false,
       expandedFarmUnlocked: false,
       decorLanterns: false,
       decorWindChime: false,
       decorPottedPlants: false,
     },
+    shippingBin: [],
+    placedDecors: [],
     introRead: false,
   };
 }
@@ -121,6 +124,12 @@ export class SaveSystem {
       if (ver < 1 || ver > CURRENT_SAVE_VERSION) return null;
 
       const defaults = createDefaultSave();
+      const mergedUpgrades = { ...defaults.upgrades, ...parsed.upgrades };
+      if (parsed.upgrades?.tableCount !== 3 && parsed.upgrades?.tableCount !== 4 && parsed.upgrades?.tableCount !== 5) {
+        mergedUpgrades.tableCount = mergedUpgrades.extraTableUnlocked ? 4 : 3;
+      }
+      mergedUpgrades.extraTableUnlocked = mergedUpgrades.tableCount >= 4;
+
       return {
         ...defaults,
         ...parsed,
@@ -140,7 +149,9 @@ export class SaveSystem {
           ong_dang: { ...defaults.relations.ong_dang, ...parsed.relations?.ong_dang },
           be_suong: { ...defaults.relations.be_suong, ...parsed.relations?.be_suong },
         },
-        upgrades: { ...defaults.upgrades, ...parsed.upgrades },
+        upgrades: mergedUpgrades,
+        shippingBin: Array.isArray(parsed.shippingBin) ? parsed.shippingBin : [],
+        placedDecors: Array.isArray(parsed.placedDecors) ? parsed.placedDecors : [],
       };
     } catch {
       return null;
