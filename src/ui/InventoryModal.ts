@@ -2,29 +2,38 @@ import { pixelArt } from '../art/pixelArtGenerator';
 import { ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import { getSteepLabel, getTempLabel, RECIPES } from '../data/recipes';
-import { InventorySlot, NpcId } from '../data/types';
+import { InventorySlot, MemoryCutscene, NpcId } from '../data/types';
 import { RelationshipSystem } from '../systems/RelationshipSystem';
 import { TooltipCallbacks } from './HUD';
 
+export type InventoryModalTab = 'bag' | 'book' | 'relations';
+
 export class InventoryModal {
-  private activeTab: 'bag' | 'book' = 'bag';
+  private activeTab: InventoryModalTab = 'bag';
   private swapSourceIdx: number | null = null;
 
   constructor(private tooltip: TooltipCallbacks) {}
+
+  public setActiveTab(tab: InventoryModalTab): void {
+    this.activeTab = tab;
+    this.swapSourceIdx = null;
+  }
 
   public render(
     modalBox: HTMLElement,
     inventory: (InventorySlot | null)[],
     unlockedRecipes: Set<string>,
     relations: RelationshipSystem,
+    npcLocations: Record<NpcId, string>,
     onSwapSlots: (a: number, b: number) => void,
+    onReplayMemory: (npcId: NpcId, mem: MemoryCutscene) => void,
     onClose: () => void
   ): void {
     modalBox.innerHTML = '';
 
     const header = document.createElement('div');
     header.className = 'modal-header';
-    header.innerHTML = `<h2>🎒 Túi Đồ & Sổ Quán Trà</h2>`;
+    header.innerHTML = `<h2>🎒 Túi Đồ, Công Thức & Quan Hệ</h2>`;
     const closeBtn = document.createElement('button');
     closeBtn.className = 'pixel-btn small';
     closeBtn.textContent = 'Đóng (Esc)';
@@ -34,23 +43,32 @@ export class InventoryModal {
 
     const tabs = document.createElement('div');
     tabs.className = 'tab-row';
-    const bagBtn = document.createElement('button');
-    bagBtn.className = `pixel-btn small ${this.activeTab === 'bag' ? 'primary' : ''}`;
-    bagBtn.textContent = '🎒 Túi Đồ (24 ô)';
-    bagBtn.onclick = () => {
-      this.activeTab = 'bag';
-      this.swapSourceIdx = null;
-      this.render(modalBox, inventory, unlockedRecipes, relations, onSwapSlots, onClose);
+    const makeTabBtn = (id: InventoryModalTab, label: string) => {
+      const btn = document.createElement('button');
+      btn.className = `pixel-btn small ${this.activeTab === id ? 'primary' : ''}`;
+      btn.textContent = label;
+      btn.onclick = () => {
+        this.activeTab = id;
+        this.swapSourceIdx = null;
+        this.render(
+          modalBox,
+          inventory,
+          unlockedRecipes,
+          relations,
+          npcLocations,
+          onSwapSlots,
+          onReplayMemory,
+          onClose
+        );
+      };
+      return btn;
     };
 
-    const bookBtn = document.createElement('button');
-    bookBtn.className = `pixel-btn small ${this.activeTab === 'book' ? 'primary' : ''}`;
-    bookBtn.textContent = `📖 Sổ Công Thức (${unlockedRecipes.size}/5) & NPC`;
-    bookBtn.onclick = () => {
-      this.activeTab = 'book';
-      this.render(modalBox, inventory, unlockedRecipes, relations, onSwapSlots, onClose);
-    };
-    tabs.append(bagBtn, bookBtn);
+    tabs.append(
+      makeTabBtn('bag', '🎒 Túi Đồ (24 ô)'),
+      makeTabBtn('book', `📖 Sổ Công Thức (${unlockedRecipes.size}/5)`),
+      makeTabBtn('relations', '💛 Quan Hệ (4 NPC)')
+    );
     modalBox.appendChild(tabs);
 
     if (this.activeTab === 'bag') {
@@ -105,13 +123,22 @@ export class InventoryModal {
             onSwapSlots(this.swapSourceIdx, idx);
             this.swapSourceIdx = null;
           }
-          this.render(modalBox, inventory, unlockedRecipes, relations, onSwapSlots, onClose);
+          this.render(
+            modalBox,
+            inventory,
+            unlockedRecipes,
+            relations,
+            npcLocations,
+            onSwapSlots,
+            onReplayMemory,
+            onClose
+          );
         };
         grid.appendChild(div);
       });
 
       modalBox.appendChild(grid);
-    } else {
+    } else if (this.activeTab === 'book') {
       const recTitle = document.createElement('h3');
       recTitle.style.margin = '0 0 8px';
       recTitle.textContent = '🍵 Sổ Công Thức Trà';
@@ -154,30 +181,70 @@ export class InventoryModal {
         list.appendChild(card);
       }
       modalBox.appendChild(list);
-
+    } else {
       const npcTitle = document.createElement('h3');
-      npcTitle.style.margin = '16px 0 8px';
-      npcTitle.textContent = '💛 Tình Cảm Bạn Bè Trên Đảo';
+      npcTitle.style.margin = '0 0 8px';
+      npcTitle.textContent = '💛 Quan Hệ & Ký Ức Bạn Bè Trên Đảo';
       modalBox.appendChild(npcTitle);
 
       const npcList = document.createElement('div');
       npcList.className = 'recipe-list';
       (Object.keys(NPCS) as NpcId[]).forEach((id) => {
         const def = NPCS[id];
+        const rel = relations.relations[id];
         const hearts = relations.getHearts(id);
+        const pts = relations.getPoints(id);
+        const subPts = hearts >= 10 ? 100 : pts % 100;
         const card = document.createElement('div');
         card.className = 'card-box';
-        card.innerHTML = `
-          <div class="card-top">
-            <img src="${pixelArt.getPortraitUrl(id, 'happy')}" style="width:48px;height:48px;border:2px solid #2b1d14;" />
-            <div>
-              <strong>${def.name}</strong>
-              <div style="font-size:12px;">${def.role}</div>
-              <div style="color:#b8433a;font-size:14px;">${'♥'.repeat(hearts)}${'♡'.repeat(10 - hearts)} (${hearts}/10)</div>
-            </div>
+
+        const top = document.createElement('div');
+        top.className = 'card-top';
+        top.innerHTML = `
+          <img src="${pixelArt.getPortraitUrl(id, hearts >= 5 ? 'happy' : 'normal')}" style="width:64px;height:64px;border:3px solid #2b1d14;image-rendering:pixelated;" alt="${def.name}" />
+          <div style="flex:1;">
+            <strong>${def.name}</strong>
+            <div style="font-size:12px;color:#6b3e26;">${def.role}</div>
+            <div style="color:#b8433a;font-size:14px;">${'♥'.repeat(hearts)}${'♡'.repeat(10 - hearts)} (${hearts}/10)</div>
+            <div class="heart-progress-bar" title="Điểm thân thiết: ${pts}/1000"><div class="heart-progress-fill" style="width:${subPts}%"></div></div>
           </div>
-          <div style="font-size:12px;">Trà yêu thích: <b>${ITEMS[def.favoriteTea].name}</b> • Ký ức đã mở: ${relations.relations[id].seenMemories.length}/4</div>
         `;
+        card.appendChild(top);
+
+        const meta = document.createElement('div');
+        meta.className = 'relation-meta';
+        meta.innerHTML = `
+          <div>📍 <b>Đang ở:</b> ${npcLocations[id] ?? 'Trên đảo'}</div>
+          <div>
+            <span>${rel.talkedToday ? '💬 Đã trò chuyện ✓' : '💬 Chưa nói chuyện'}</span> •
+            <span>${rel.giftedToday ? '🎁 Đã tặng quà ✓' : '🎁 Có thể tặng quà'}</span>
+          </div>
+          <div>🍵 <b>Thích nhất:</b> ${ITEMS[def.favoriteTea].name}</div>
+          <div>👍 <b>Thích:</b> ${def.likedItems.slice(0, 3).map((x) => ITEMS[x].name).join(', ')}</div>
+          <div>👎 <b>Ghét:</b> ${def.dislikedItems.slice(0, 2).map((x) => ITEMS[x].name).join(', ')}</div>
+        `;
+        card.appendChild(meta);
+
+        const memRow = document.createElement('div');
+        memRow.className = 'memory-chip-row';
+        for (const mem of def.memories) {
+          const seen = rel.seenMemories.includes(mem.heartsRequired);
+          const unlocked = seen || hearts >= mem.heartsRequired;
+          if (unlocked) {
+            const btn = document.createElement('button');
+            btn.className = `memory-chip unlocked`;
+            btn.textContent = seen ? `▶ Ký ức ${mem.heartsRequired}♥ ✓` : `▶ Mở ký ức ${mem.heartsRequired}♥ ✨`;
+            btn.title = mem.title;
+            btn.onclick = () => onReplayMemory(id, mem);
+            memRow.appendChild(btn);
+          } else {
+            const span = document.createElement('span');
+            span.className = 'memory-chip';
+            span.textContent = `🔒 ${mem.heartsRequired}♥`;
+            memRow.appendChild(span);
+          }
+        }
+        card.appendChild(memRow);
         npcList.appendChild(card);
       });
       modalBox.appendChild(npcList);

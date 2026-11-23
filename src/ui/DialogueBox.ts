@@ -67,6 +67,25 @@ export class DialogueBox {
     this.showNextEntry();
   }
 
+  private getVoicePitch(id?: PortraitId): number {
+    switch (id) {
+      case 'be_suong':
+        return 720;
+      case 'may':
+        return 660;
+      case 'co_lu':
+        return 470;
+      case 'ong_dang':
+        return 310;
+      case 'guest_poet':
+        return 580;
+      case 'guest_merchant':
+        return 410;
+      default:
+        return 520;
+    }
+  }
+
   private showNextEntry(): void {
     if (this.typingTimer !== null) {
       window.clearInterval(this.typingTimer);
@@ -99,6 +118,7 @@ export class DialogueBox {
     this.fullText = next.text;
     this.charIndex = 0;
     this.textEl.textContent = '';
+    const pitch = this.getVoicePitch(portraitTarget);
 
     this.typingTimer = window.setInterval(() => {
       if (this.charIndex >= this.fullText.length) {
@@ -111,7 +131,7 @@ export class DialogueBox {
       this.charIndex += 1;
       this.textEl.textContent = this.fullText.slice(0, this.charIndex);
       if (this.charIndex % 3 === 1) {
-        this.audio.playBlip();
+        this.audio.playBlip(pitch);
       }
     }, 24);
   }

@@ -116,7 +116,7 @@ export class HUD {
       <div>Vị trí: X=${info.x.toFixed(2)}, Z=${info.z.toFixed(2)} (${info.dir})</div>
       <div>Ô nhắm: ${info.tileInfo}</div>
       <div>Giờ: ${info.timeInfo} | ${info.weather}</div>
-      <div style="font-size:11px;color:#6b3e26;margin-top:3px;">F5:+1h • F6:Qua ngày • F7:+1000Xu • F8:Thời tiết • F9:Hạt & NL</div>
+      <div style="font-size:11px;color:#6b3e26;margin-top:3px;">F5:+1h • F6:Qua ngày • F7:+1000Xu<br/>F8:Thời tiết • F9:Hạt & NL • F10:+1Tim</div>
     `;
   }
 

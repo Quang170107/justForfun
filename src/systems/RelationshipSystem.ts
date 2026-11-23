@@ -1,8 +1,39 @@
+import { NPC_CONTEXT_DIALOGUES } from '../data/dialogues';
 import { NPCS } from '../data/npcs';
-import { ItemId, MemoryCutscene, NpcId, NpcRelationState } from '../data/types';
+import {
+  GiftReactionTier,
+  ItemId,
+  MemoryCutscene,
+  NpcId,
+  NpcRelationState,
+  PortraitExpression,
+  WeatherType,
+} from '../data/types';
+
+export interface TalkResult {
+  line: string;
+  expression: PortraitExpression;
+  pointsAdded: number;
+  memory: MemoryCutscene | null;
+}
+
+export interface GiftResult {
+  tier: GiftReactionTier;
+  pointsDelta: number;
+  expression: PortraitExpression;
+  line: string;
+  memory: MemoryCutscene | null;
+}
 
 export class RelationshipSystem {
   public relations: Record<NpcId, NpcRelationState>;
+  private recentLines: Record<NpcId, string[]> = {
+    may: [],
+    co_lu: [],
+    ong_dang: [],
+    be_suong: [],
+  };
+  private talkCounter = 0;
 
   constructor(initial: Record<NpcId, NpcRelationState>) {
     this.relations = {
@@ -17,35 +48,119 @@ export class RelationshipSystem {
     return Math.min(10, Math.floor(this.relations[npcId].points / 100));
   }
 
+  public getPoints(npcId: NpcId): number {
+    return this.relations[npcId].points;
+  }
+
   public addPoints(npcId: NpcId, pts: number): MemoryCutscene | null {
     const rel = this.relations[npcId];
-    rel.points = Math.min(1000, rel.points + pts);
+    rel.points = Math.max(0, Math.min(1000, rel.points + pts));
     return this.checkUnseenMemory(npcId);
   }
 
-  public talkToNpc(npcId: NpcId): { line: string; memory: MemoryCutscene | null } {
+  public addDebugPoints(npcId: NpcId, pts: number): number {
     const rel = this.relations[npcId];
-    const def = NPCS[npcId];
+    rel.points = Math.max(0, Math.min(1000, rel.points + pts));
+    return this.getHearts(npcId);
+  }
+
+  public talkToNpc(
+    npcId: NpcId,
+    ctx: { day: number; weather: WeatherType; timeMinutes: number } = {
+      day: 1,
+      weather: 'sunny',
+      timeMinutes: 480,
+    }
+  ): TalkResult {
+    const rel = this.relations[npcId];
+    const pool = NPC_CONTEXT_DIALOGUES[npcId];
+
+    let pointsAdded = 0;
     let memory: MemoryCutscene | null = null;
     if (!rel.talkedToday) {
       rel.talkedToday = true;
-      memory = this.addPoints(npcId, 35);
+      pointsAdded = 35;
+      memory = this.addPoints(npcId, pointsAdded);
     } else {
       memory = this.checkUnseenMemory(npcId);
     }
-    const line = def.dailyLines[Math.floor(Math.random() * def.dailyLines.length)];
-    return { line, memory };
+
+    const hearts = this.getHearts(npcId);
+    const heartLines =
+      hearts >= 7 ? pool.highHeart : hearts >= 3 ? pool.midHeart : pool.lowHeart;
+
+    let primaryPool: string[];
+    if (ctx.weather === 'rainy') {
+      primaryPool = pool.rainy;
+    } else if (ctx.weather === 'foggy') {
+      primaryPool = pool.foggy;
+    } else if (ctx.timeMinutes >= 1080) {
+      primaryPool = pool.evening;
+    } else {
+      primaryPool = heartLines;
+    }
+
+    const recent = this.recentLines[npcId];
+    const freshPrimary = primaryPool.filter((line) => !recent.includes(line));
+    const fallbackAll = [...primaryPool, ...heartLines].filter(
+      (line) => line !== recent[recent.length - 1]
+    );
+    const list =
+      freshPrimary.length > 0
+        ? freshPrimary
+        : fallbackAll.length > 0
+          ? fallbackAll
+          : primaryPool;
+
+    this.talkCounter += 1;
+    const idx = (ctx.day * 7 + this.talkCounter + Math.floor(rel.points / 35)) % list.length;
+    const chosenLine = list[idx];
+
+    recent.push(chosenLine);
+    if (recent.length > 2) recent.shift();
+
+    const expression: PortraitExpression =
+      hearts >= 7 || (ctx.weather === 'sunny' && hearts >= 3 && idx % 2 === 0) ? 'happy' : 'normal';
+
+    return { line: chosenLine, expression, pointsAdded, memory };
   }
 
-  public giveGift(npcId: NpcId, itemId: ItemId, quality: 1 | 2 | 3): { loved: boolean; memory: MemoryCutscene | null } {
+  public giveGift(npcId: NpcId, itemId: ItemId, quality: 1 | 2 | 3): GiftResult {
     const rel = this.relations[npcId];
     const def = NPCS[npcId];
-    const loved = def.favoriteTea === itemId;
-    const basePts = loved ? 110 : 45;
-    const bonus = (quality - 1) * 15;
+
+    let tier: GiftReactionTier;
+    let pointsDelta: number;
+    let expression: PortraitExpression;
+
+    if (def.favoriteTea === itemId) {
+      tier = 'loved';
+      pointsDelta = 120 + (quality - 1) * 20;
+      expression = 'happy';
+    } else if (def.likedItems.includes(itemId)) {
+      tier = 'liked';
+      pointsDelta = 65 + (quality - 1) * 15;
+      expression = 'happy';
+    } else if (def.dislikedItems.includes(itemId)) {
+      tier = 'disliked';
+      pointsDelta = -25;
+      expression = 'sad';
+    } else {
+      tier = 'neutral';
+      pointsDelta = 30 + (quality - 1) * 10;
+      expression = 'normal';
+    }
+
     rel.giftedToday = true;
-    const memory = this.addPoints(npcId, basePts + bonus);
-    return { loved, memory };
+    const memory = this.addPoints(npcId, pointsDelta);
+
+    return {
+      tier,
+      pointsDelta,
+      expression,
+      line: def.giftReactions[tier],
+      memory,
+    };
   }
 
   public checkUnseenMemory(npcId: NpcId): MemoryCutscene | null {
@@ -59,6 +174,15 @@ export class RelationshipSystem {
       }
     }
     return null;
+  }
+
+  public markMemorySeen(npcId: NpcId, heartsRequired: number): boolean {
+    const rel = this.relations[npcId];
+    if (rel.seenMemories.includes(heartsRequired)) {
+      return false;
+    }
+    rel.seenMemories.push(heartsRequired);
+    return true;
   }
 
   public onNewDay(): void {

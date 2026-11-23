@@ -19,7 +19,8 @@ export type GameActionKey =
   | 'debugNextDay'
   | 'debugAddMoney'
   | 'debugCycleWeather'
-  | 'debugGiveSeeds';
+  | 'debugGiveSeeds'
+  | 'debugAddHearts';
 
 export class InputSystem {
   private held = new Set<string>();
@@ -82,7 +83,7 @@ export class InputSystem {
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space', 'Tab'].includes(code)) {
       e.preventDefault();
     }
-    if (import.meta.env.DEV && ['F3', 'F5', 'F6', 'F7', 'F8', 'F9'].includes(code)) {
+    if (import.meta.env.DEV && ['F3', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10'].includes(code)) {
       e.preventDefault();
     }
 
@@ -107,6 +108,7 @@ export class InputSystem {
         if (code === 'F7') this.justPressed.add('debugAddMoney');
         if (code === 'F8') this.justPressed.add('debugCycleWeather');
         if (code === 'F9') this.justPressed.add('debugGiveSeeds');
+        if (code === 'F10') this.justPressed.add('debugAddHearts');
       }
     }
 

@@ -133,6 +133,7 @@ export class ShopAndMenuModal {
     modalBox: HTMLElement,
     bgmEnabled: boolean,
     onSaveNow: () => void,
+    onOpenRelations: () => void,
     onToggleAudio: () => void,
     onOpenSettings: () => void,
     onReturnTitle: () => void,
@@ -150,11 +151,12 @@ export class ShopAndMenuModal {
           • <b>WASD / Mũi tên:</b> Di chuyển quanh đảo<br/>
           • <b>E / Space / Click:</b> Dùng công cụ, phơi/sao lá, pha trà, phục vụ khách hoặc nói chuyện NPC<br/>
           • <b>1–9 / Cuộn chuột:</b> Chọn ô Hotbar (1: Cuốc, 2: Bình tưới, 3: Giỏ, 4+: Hạt & Trà)<br/>
-          • <b>Q / R:</b> Xoay góc nhìn camera 90° &nbsp;|&nbsp; <b>Tab / I:</b> Mở Túi đồ & Sổ Công Thức
+          • <b>Q / R:</b> Xoay góc nhìn camera 90° &nbsp;|&nbsp; <b>Tab / I:</b> Mở Túi đồ, Sổ Công Thức & Quan Hệ
         </div>
       </div>
       <div style="display:flex;flex-wrap:wrap;gap:10px;justify-content:center;">
         <button id="btn-menu-save" class="pixel-btn primary">💾 Lưu Game Ngay</button>
+        <button id="btn-menu-relations" class="pixel-btn">💛 Quan Hệ (NPC)</button>
         <button id="btn-menu-audio" class="pixel-btn">${bgmEnabled ? '🔊 Nhạc nền: BẬT' : '🔇 Nhạc nền: TẮT'}</button>
         <button id="btn-menu-settings" class="pixel-btn">🎛️ Cài Đặt</button>
         <button id="btn-menu-title" class="pixel-btn">🏠 Màn Hình Tiêu Đề</button>
@@ -163,6 +165,7 @@ export class ShopAndMenuModal {
     `;
     modalBox.querySelector('#btn-menu-close')!.addEventListener('click', onClose);
     modalBox.querySelector('#btn-menu-save')!.addEventListener('click', onSaveNow);
+    modalBox.querySelector('#btn-menu-relations')!.addEventListener('click', onOpenRelations);
     modalBox.querySelector('#btn-menu-audio')!.addEventListener('click', onToggleAudio);
     modalBox.querySelector('#btn-menu-settings')!.addEventListener('click', onOpenSettings);
     modalBox.querySelector('#btn-menu-title')!.addEventListener('click', onReturnTitle);

@@ -114,13 +114,33 @@ export interface MemoryCutscene {
   rewardItem?: { itemId: ItemId; count: number; quality: 1 | 2 | 3 };
 }
 
+export type NpcTimeSlot = 'morning' | 'afternoon' | 'evening';
+export type NpcScheduleKey = NpcTimeSlot | 'rainy';
+export type GiftReactionTier = 'loved' | 'liked' | 'neutral' | 'disliked';
+
+export interface NpcScheduleEntry {
+  label: string;
+  points: { x: number; z: number }[];
+}
+
+export interface NpcSchedule {
+  morning: NpcScheduleEntry;
+  afternoon: NpcScheduleEntry;
+  evening: NpcScheduleEntry;
+  rainy: NpcScheduleEntry;
+}
+
 export interface NpcDef {
   id: NpcId;
   name: string;
   role: string;
   favoriteTea: ItemId;
+  likedItems: ItemId[];
+  dislikedItems: ItemId[];
+  giftReactions: Record<GiftReactionTier, string>;
   homePos: { x: number; z: number };
   patrolPoints: { x: number; z: number }[];
+  schedule: NpcSchedule;
   dailyLines: string[];
   orderHints: string[];
   memories: MemoryCutscene[];

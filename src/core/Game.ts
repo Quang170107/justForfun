@@ -27,6 +27,7 @@ import { RelationshipSystem } from '../systems/RelationshipSystem';
 import { ShopSystem } from '../systems/ShopSystem';
 import { WeatherSystem } from '../systems/WeatherSystem';
 import { UIManager } from '../ui/UIManager';
+import { InventoryModalTab } from '../ui/InventoryModal';
 import { Buildings } from '../world/Buildings';
 import { CloudSea } from '../world/CloudSea';
 import { Island } from '../world/Island';
@@ -291,6 +292,11 @@ export class Game {
     this.shop = new ShopSystem(this.relations);
     this.buildings.setShopOpenSign(false);
 
+    for (const npc of this.npcs.values()) {
+      npc.hiddenDuringCafe = false;
+      npc.syncToSchedule(this.time.timeMinutes, this.weather.currentWeather);
+    }
+
     this.player.x = data.playerPos.x;
     this.player.z = data.playerPos.z;
     this.player.direction = 'down';
@@ -412,7 +418,15 @@ export class Game {
     this.weather.update(dt, this.elapsed, lighting.nightFactor);
 
     for (const npc of this.npcs.values()) {
-      npc.update(dt, this.elapsed, lighting.nightFactor, this.island, blocked);
+      npc.update(
+        dt,
+        this.elapsed,
+        lighting.nightFactor,
+        this.island,
+        blocked,
+        this.time.timeMinutes,
+        this.weather.currentWeather
+      );
     }
 
     this.ui.hud.updateClockAndMeta(
@@ -621,6 +635,15 @@ export class Game {
         brewMats.forEach((m) => this.addItem(m.id, m.count, m.quality));
         this.audio.playHarvest();
         this.ui.hud.showToast('🌱 Debug: +5 hạt giống & +3 nguyên liệu pha trà các loại');
+      }
+      if (this.input.consume('debugAddHearts')) {
+        (Object.keys(NPCS) as NpcId[]).forEach((id) => {
+          this.relations.addDebugPoints(id, 100);
+        });
+        this.audio.playChime();
+        this.ui.hud.showToast(
+          '💖 Debug: +1 tim cho cả 4 NPC! Nói chuyện hoặc mở Quan Hệ để xem ký ức.'
+        );
       }
     }
     if (this.input.consume('escape')) {
@@ -950,57 +973,76 @@ export class Game {
       return;
     }
 
-    // 2. Nói chuyện & tặng trà NPC
+    // 2. Nói chuyện & tặng quà NPC
     const npc = this.findNearestNpc();
     if (npc) {
-      const { line, memory } = this.relations.talkToNpc(npc.def.id);
+      const talk = this.relations.talkToNpc(npc.def.id, {
+        day: this.time.day,
+        weather: this.weather.currentWeather,
+        timeMinutes: this.time.timeMinutes,
+      });
+      if (talk.pointsAdded > 0) {
+        this.ui.hud.showToast(`💛 +${talk.pointsAdded} điểm thân thiết với ${npc.def.name}`);
+      }
+
       const held = this.getHeldSlot();
+      const heldDef = held ? ITEMS[held.itemId] : null;
       const canGift =
-        held &&
+        held !== null &&
+        heldDef !== null &&
         !this.relations.relations[npc.def.id].giftedToday &&
-        ITEMS[held.itemId].category === 'tea';
+        heldDef.category !== 'tool' &&
+        heldDef.category !== 'seed';
 
       this.ui.dialogue.open(
         [
           {
             speaker: npc.def.name,
             npcId: npc.def.id,
-            expression: 'normal',
-            text: line,
+            expression: talk.expression,
+            text: talk.line,
             hearts: this.relations.getHearts(npc.def.id),
           },
         ],
         {
-          giftLabel: canGift ? `🍵 Tặng ${ITEMS[held!.itemId].name}` : undefined,
+          giftLabel: canGift ? `🎁 Tặng ${heldDef!.name}` : undefined,
           onGift: canGift
             ? () => {
                 const giftId = held!.itemId;
                 const q = held!.quality;
                 this.consumeAtSlot(this.selectedHotbarIndex, 1);
                 const gRes = this.relations.giveGift(npc.def.id, giftId, q);
-                this.audio.playChime();
+                if (gRes.tier === 'disliked') {
+                  this.audio.playBlip(280);
+                  this.weather.spawnBurst(npc.x, 1.5, npc.z, PALETTE.waterBlue, 6);
+                } else {
+                  this.audio.playChime();
+                  this.weather.spawnBurst(npc.x, 1.5, npc.z, PALETTE.amberGold, 9);
+                }
+                const sign = gRes.pointsDelta >= 0 ? `+${gRes.pointsDelta}` : `${gRes.pointsDelta}`;
+                this.ui.hud.showToast(
+                  `🎁 Tặng ${ITEMS[giftId].name} cho ${npc.def.name} (${sign} điểm thân thiết)`
+                );
                 this.ui.dialogue.open(
                   [
                     {
                       speaker: npc.def.name,
                       npcId: npc.def.id,
-                      expression: gRes.loved ? 'happy' : 'normal',
-                      text: gRes.loved
-                        ? `Ôi, ${ITEMS[giftId].name}! Đây là món tôi thích nhất đấy! Cảm ơn cậu nhiều lắm!`
-                        : `Cảm ơn cậu đã tặng tôi ${ITEMS[giftId].name}, thật ấm áp quá.`,
+                      expression: gRes.expression,
+                      text: gRes.line,
                       hearts: this.relations.getHearts(npc.def.id),
                     },
                   ],
                   {
                     onComplete: () => {
-                      if (gRes.memory) this.playMemoryCutscene(npc.def.id, gRes.memory);
+                      if (gRes.memory) this.playMemoryCutscene(npc.def.id, gRes.memory, true);
                     },
                   }
                 );
               }
             : undefined,
           onComplete: () => {
-            if (memory) this.playMemoryCutscene(npc.def.id, memory);
+            if (talk.memory) this.playMemoryCutscene(npc.def.id, talk.memory, true);
           },
         }
       );
@@ -1144,7 +1186,7 @@ export class Game {
     this.ui.hud.showToast(this.processing.getRackStatusText());
   }
 
-  private playMemoryCutscene(npcId: NpcId, mem: MemoryCutscene): void {
+  private playMemoryCutscene(npcId: NpcId, mem: MemoryCutscene, grantReward = true): void {
     const entries = mem.lines.map((l) => ({
       speaker: `${l.speaker} • ${mem.title}`,
       npcId,
@@ -1154,6 +1196,7 @@ export class Game {
     }));
     this.ui.dialogue.open(entries, {
       onComplete: () => {
+        if (!grantReward) return;
         if (mem.rewardMoney) {
           this.money += mem.rewardMoney;
           this.audio.playCoin();
@@ -1181,13 +1224,22 @@ export class Game {
     });
   }
 
-  private openInventoryModal(): void {
+  private openInventoryModal(initialTab?: InventoryModalTab): void {
+    if (initialTab) {
+      this.ui.inventoryModal.setActiveTab(initialTab);
+    }
+    const npcLocations = {} as Record<NpcId, string>;
+    for (const [id, npc] of this.npcs.entries()) {
+      npcLocations[id] = npc.hiddenDuringCafe ? 'Ngồi uống trà tại Quán Trà' : npc.getCurrentScheduleLabel();
+    }
+
     this.ui.openModal('inventory');
     this.ui.inventoryModal.render(
       this.ui.modalBox,
       this.inventory,
       this.brewing.unlockedRecipes,
       this.relations,
+      npcLocations,
       (a, b) => {
         if (a === b) return;
         const src = this.inventory[a];
@@ -1205,6 +1257,11 @@ export class Game {
         }
         this.inventory[a] = dst;
         this.inventory[b] = src;
+      },
+      (npcId, mem) => {
+        this.ui.closeModal();
+        const firstUnlock = this.relations.markMemorySeen(npcId, mem.heartsRequired);
+        this.playMemoryCutscene(npcId, mem, firstUnlock);
       },
       () => this.ui.closeModal()
     );
@@ -1386,6 +1443,7 @@ export class Game {
           this.persistGame(true);
           this.ui.closeModal();
         },
+        () => this.openInventoryModal('relations'),
         () => {
           this.audio.bgmEnabled = !this.audio.bgmEnabled;
           rerender();
@@ -1448,6 +1506,9 @@ export class Game {
       this.relations.onNewDay();
       this.shop.onNewDay();
       this.buildings.setShopOpenSign(false);
+      for (const n of this.npcs.values()) {
+        n.syncToSchedule(this.time.timeMinutes, this.weather.currentWeather);
+      }
 
       // Đặt người chơi cạnh giường trong Nhà Ở
       this.player.x = -2.2;
