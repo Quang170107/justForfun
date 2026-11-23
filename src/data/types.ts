@@ -101,6 +101,9 @@ export interface RecipeDef {
 }
 
 export type NpcId = 'may' | 'co_lu' | 'ong_dang' | 'be_suong';
+export type GuestAppearanceId = 'guest_traveler' | 'guest_poet' | 'guest_painter' | 'guest_merchant';
+export type CharacterSpriteId = NpcId | GuestAppearanceId;
+export type PortraitId = CharacterSpriteId;
 export type PortraitExpression = 'normal' | 'happy' | 'sad';
 
 export interface MemoryCutscene {
@@ -132,7 +135,11 @@ export interface NpcRelationState {
 
 export interface ActiveCustomer {
   uid: string;
-  npcId: NpcId;
+  npcId: NpcId | null;
+  appearanceId: CharacterSpriteId;
+  displayName: string;
+  roleLabel: string;
+  reaction: 'none' | 'happy' | 'sad';
   seatIndex: number;
   wantedRecipeId: string;
   hintText: string;

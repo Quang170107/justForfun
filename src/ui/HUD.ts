@@ -40,7 +40,9 @@ export class HUD {
     formattedTime: string,
     progress: number,
     weather: WeatherType,
-    isOpen: boolean,
+    isWithinCafeHours: boolean,
+    isShopManuallyOpen: boolean,
+    timeMinutes: number,
     money: number,
     tintHex: string,
     nightFactor: number
@@ -51,8 +53,19 @@ export class HUD {
 
     const weatherIcon = weather === 'sunny' ? '☀️ Nắng ấm' : weather === 'rainy' ? '🌧️ Mưa nhẹ' : '🌫️ Sương mù';
     this.weatherEl.textContent = weatherIcon;
-    this.cafeStatusEl.textContent = isOpen ? '🍵 Quán đang mở!' : '☕ 14:00 mở quán';
-    this.cafeStatusEl.style.color = isOpen ? '#3f7d3a' : '#6b3e26';
+    if (isWithinCafeHours && isShopManuallyOpen) {
+      this.cafeStatusEl.textContent = '🏮 Quán ĐANG MỞ!';
+      this.cafeStatusEl.style.color = '#3f7d3a';
+    } else if (isWithinCafeHours) {
+      this.cafeStatusEl.textContent = '🪵 14:00–20:00 (Lật biển mở)';
+      this.cafeStatusEl.style.color = '#b8433a';
+    } else if (timeMinutes >= 1200) {
+      this.cafeStatusEl.textContent = '🌙 Quán đã đóng cửa';
+      this.cafeStatusEl.style.color = '#6b3e26';
+    } else {
+      this.cafeStatusEl.textContent = '☕ 14:00 mở quán';
+      this.cafeStatusEl.style.color = '#6b3e26';
+    }
 
     // Quay mặt trời / mặt trăng theo tiến độ ngày
     const arcX = Math.cos(Math.PI * (1 - progress)) * 11;

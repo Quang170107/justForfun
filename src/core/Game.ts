@@ -2,9 +2,11 @@ import * as THREE from 'three';
 import { PALETTE } from '../art/palette';
 import { CAMERA_ELEVATION_RAD, PIXELS_PER_UNIT, pixelArt } from '../art/pixelArtGenerator';
 import { DRYING_OUTPUT_MAP, getItemSellValue, ITEMS } from '../data/crops';
+import { GUEST_PROFILES } from '../data/customers';
 import { NPCS } from '../data/npcs';
 import {
   DailySummaryStats,
+  GuestAppearanceId,
   InventorySlot,
   ItemId,
   MemoryCutscene,
@@ -188,6 +190,7 @@ export class Game {
     this.brewing = new BrewingSystem(loaded.unlockedRecipes);
     this.relations = new RelationshipSystem(loaded.relations);
     this.shop = new ShopSystem(this.relations);
+    this.buildings.setShopOpenSign(false);
 
     // 4. Entities & Tile Cursor
     this.player = new Player(loaded.playerPos.x, loaded.playerPos.z);
@@ -286,6 +289,7 @@ export class Game {
     this.brewing = new BrewingSystem(data.unlockedRecipes);
     this.relations = new RelationshipSystem(data.relations);
     this.shop = new ShopSystem(this.relations);
+    this.buildings.setShopOpenSign(false);
 
     this.player.x = data.playerPos.x;
     this.player.z = data.playerPos.z;
@@ -418,6 +422,8 @@ export class Game {
       this.time.getDayProgress(),
       this.weather.currentWeather,
       this.time.isTeahouseOpen(),
+      this.shop.isManuallyOpen,
+      this.time.timeMinutes,
       this.money,
       lighting.tintColor.getHexString(),
       lighting.nightFactor
@@ -563,6 +569,12 @@ export class Game {
           this.triggerSleep(true);
         } else {
           this.time.advanceMinutes(60);
+          for (const c of this.customers) {
+            if (c.data.state === 'seated') {
+              c.data.waitTimer += 40;
+              c.data.patience = Math.max(15, 100 - c.data.waitTimer * 0.9);
+            }
+          }
           this.ui.hud.showToast(`⏩ Debug: ${this.time.getFormattedTime()}`);
         }
       }
@@ -689,10 +701,21 @@ export class Game {
   }
 
   private updateCustomers(dt: number): void {
-    const isOpen = this.time.isTeahouseOpen();
+    const withinHours = this.time.isTeahouseOpen();
+    if (!withinHours && this.shop.isManuallyOpen) {
+      this.shop.forceClose();
+      this.buildings.setShopOpenSign(false);
+      this.ui.hud.showToast(
+        '🌙 Đã quá 20:00 — biển quán chuyển sang Đóng Cửa (khách đang ngồi vẫn được phục vụ nốt)!'
+      );
+    }
+
+    const activelyOpen = withinHours && this.shop.isManuallyOpen;
+    this.buildings.setShopOpenSign(activelyOpen);
+
     const spawned = this.shop.trySpawnCustomer(
       dt,
-      isOpen,
+      activelyOpen,
       this.customers.map((c) => c.data),
       this.upgrades.extraTableUnlocked
     );
@@ -701,14 +724,16 @@ export class Game {
       const ent = new CustomerEntity(spawned, seatPos);
       this.customers.push(ent);
       this.scene.add(ent.group);
-      const npcEntity = this.npcs.get(spawned.npcId);
-      if (npcEntity) npcEntity.hiddenDuringCafe = true;
+      if (spawned.npcId) {
+        const npcEntity = this.npcs.get(spawned.npcId);
+        if (npcEntity) npcEntity.hiddenDuringCafe = true;
+      }
       this.audio.playChime();
-      this.ui.hud.showToast(`🍵 ${NPCS[spawned.npcId].name} vừa ghé quán!`);
+      this.ui.hud.showToast(`🍵 ${spawned.displayName} vừa bước qua Bến Mây ghé quán!`);
     }
 
-    // Nếu quá 21:00 thì khách đang ngồi từ từ rời quán
-    if (this.time.timeMinutes > 1260) {
+    // Khách cực kỳ kiên nhẫn, chỉ tới khuya (22:00) mới đứng dậy ra về
+    if (this.time.timeMinutes >= 1320) {
       for (const c of this.customers) {
         if (c.data.state === 'seated') c.data.state = 'leaving';
       }
@@ -719,10 +744,24 @@ export class Game {
       const left = c.update(dt, this.elapsed);
       if (left) {
         this.scene.remove(c.group);
-        const npcEntity = this.npcs.get(c.data.npcId);
-        if (npcEntity) npcEntity.hiddenDuringCafe = false;
+        if (c.data.npcId) {
+          const npcEntity = this.npcs.get(c.data.npcId);
+          if (npcEntity) npcEntity.hiddenDuringCafe = false;
+        }
         this.customers.splice(i, 1);
       }
+    }
+
+    if (
+      this.customers.length === 0 &&
+      this.shop.customersSpawnedToday > 0 &&
+      !this.shop.afternoonFinishedAnnounced &&
+      (this.shop.customersSpawnedToday >= this.shop.maxCustomersToday || !withinHours)
+    ) {
+      this.shop.afternoonFinishedAnnounced = true;
+      this.ui.hud.showToast(
+        '🌅 Vị khách cuối cùng đã rời Bến Mây — kết thúc buổi chiều phục vụ trọn vẹn!'
+      );
     }
   }
 
@@ -731,8 +770,12 @@ export class Game {
     let bestDist = Infinity;
     for (const c of this.customers) {
       if (c.data.state !== 'seated') continue;
-      const d = Math.hypot(this.player.x - c.x, this.player.z - c.z);
-      if (d <= 1.75 && d < bestDist) {
+      const seat = this.buildings.tableSeats[c.data.seatIndex];
+      const d = Math.min(
+        Math.hypot(this.player.x - c.x, this.player.z - c.z),
+        Math.hypot(this.player.x - seat.x, this.player.z - seat.z)
+      );
+      if (d <= 1.85 && d < bestDist) {
         best = c;
         bestDist = d;
       }
@@ -761,8 +804,8 @@ export class Game {
       const heldIsTea = held && ITEMS[held.itemId].category === 'tea';
       this.ui.hud.setPrompt(
         heldIsTea
-          ? `Phục vụ ${ITEMS[held.itemId].name} cho ${NPCS[cust.data.npcId].name}`
-          : `Hỏi order của ${NPCS[cust.data.npcId].name}`
+          ? `Phục vụ ${ITEMS[held.itemId].name} cho ${cust.data.displayName}`
+          : `Hỏi order của ${cust.data.displayName}`
       );
       return;
     }
@@ -798,6 +841,12 @@ export class Game {
       }
       if (zone.id === 'roast_wok') {
         this.ui.hud.setPrompt('Sao trà trên Chảo Sao (Mini-game)');
+        return;
+      }
+      if (zone.id === 'open_sign') {
+        this.ui.hud.setPrompt(
+          this.shop.isManuallyOpen ? 'Lật biển ĐÓNG CỬA Quán Trà' : 'Lật biển MỞ CỬA Quán Trà'
+        );
         return;
       }
       this.ui.hud.setPrompt(zone.label);
@@ -836,7 +885,7 @@ export class Game {
     const cust = this.findNearestCustomer();
     if (cust) {
       const held = this.getHeldSlot();
-      const npcDef = NPCS[cust.data.npcId];
+      const customerHearts = cust.data.npcId ? this.relations.getHearts(cust.data.npcId) : undefined;
       if (held && ITEMS[held.itemId].category === 'tea') {
         const teaId = held.itemId;
         const quality = held.quality;
@@ -844,27 +893,58 @@ export class Game {
         const res = this.shop.serveCustomer(cust.data, teaId, quality);
         this.money += res.moneyEarned;
         this.dailyTeaIncome += res.moneyEarned;
-        this.audio.playCoin();
-        this.weather.spawnBurst(cust.x, 1.5, cust.z, PALETTE.amberGold, 10);
+        if (res.exactMatch) {
+          this.audio.playCoin();
+          this.weather.spawnBurst(cust.x, 1.5, cust.z, PALETTE.amberGold, 10);
+        } else {
+          this.audio.playBlip(360);
+          this.weather.spawnBurst(cust.x, 1.5, cust.z, PALETTE.waterBlue, 6);
+        }
         this.ui.hud.showToast(res.message);
 
-        if (res.bonusGiftSeed) {
+        if (res.bonusGiftSeed && cust.data.npcId) {
           this.addItem(res.bonusGiftSeed, 1, 2);
-          this.ui.hud.showToast(`🎁 ${npcDef.name} tặng kèm 1 ${ITEMS[res.bonusGiftSeed].name}!`);
+          this.ui.hud.showToast(
+            `🎁 ${cust.data.displayName} tặng kèm 1 ${ITEMS[res.bonusGiftSeed].name}!`
+          );
         }
-        if (res.memory) {
-          this.playMemoryCutscene(cust.data.npcId, res.memory);
-        }
+
+        const servedNpcId = cust.data.npcId;
+        this.ui.dialogue.open(
+          [
+            {
+              speaker: cust.data.displayName,
+              portraitId: cust.data.appearanceId,
+              expression: res.reaction,
+              text: `${res.dialogueText} (+${res.moneyEarned} Xu Mây)`,
+              hearts: customerHearts,
+            },
+          ],
+          {
+            onComplete: () => {
+              if (res.memory && servedNpcId) {
+                this.playMemoryCutscene(servedNpcId, res.memory);
+              }
+            },
+          }
+        );
         return;
       }
 
+      const waitingLong = cust.data.patience < 45;
+      const waitNote = waitingLong
+        ? cust.data.npcId
+          ? 'Tôi ngồi đợi nãy giờ hơi khát cổ rồi... '
+          : `${GUEST_PROFILES[cust.data.appearanceId as GuestAppearanceId].waitingLine} `
+        : '';
+
       this.ui.dialogue.open([
         {
-          speaker: `${npcDef.name} (Khách quán)`,
-          npcId: cust.data.npcId,
-          expression: cust.data.patience < 45 ? 'sad' : 'normal',
-          text: `"${cust.data.hintText}" (Hãy vào Quầy Pha Trà pha món hợp ý rồi cầm trên tay mang ra phục vụ!)`,
-          hearts: this.relations.getHearts(cust.data.npcId),
+          speaker: `${cust.data.displayName} (${cust.data.npcId ? 'Khách quen' : cust.data.roleLabel})`,
+          portraitId: cust.data.appearanceId,
+          expression: waitingLong ? 'sad' : 'normal',
+          text: `${waitNote}"${cust.data.hintText}" (Pha tách trà hợp ý tại Quầy rồi cầm trên tay phục vụ nhé!)`,
+          hearts: customerHearts,
         },
       ]);
       return;
@@ -952,6 +1032,14 @@ export class Game {
       }
       if (zone.id === 'drying_rack') {
         this.interactDryingRack();
+        return;
+      }
+      if (zone.id === 'open_sign') {
+        const res = this.shop.toggleOpen(this.time.isTeahouseOpen());
+        this.buildings.setShopOpenSign(res.isOpen);
+        if (res.ok) this.audio.playChime();
+        else this.audio.playBlip(320);
+        this.ui.hud.showToast(res.message);
         return;
       }
     }
@@ -1359,6 +1447,7 @@ export class Game {
       this.buildings.setDryingRackState(this.processing.getVisualState());
       this.relations.onNewDay();
       this.shop.onNewDay();
+      this.buildings.setShopOpenSign(false);
 
       // Đặt người chơi cạnh giường trong Nhà Ở
       this.player.x = -2.2;

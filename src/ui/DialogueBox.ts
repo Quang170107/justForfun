@@ -1,10 +1,11 @@
 import { pixelArt } from '../art/pixelArtGenerator';
 import { AudioSystem } from '../core/AudioSystem';
-import { NpcId, PortraitExpression } from '../data/types';
+import { NpcId, PortraitExpression, PortraitId } from '../data/types';
 
 export interface DialogueEntry {
   speaker: string;
   npcId?: NpcId;
+  portraitId?: PortraitId;
   expression?: PortraitExpression;
   text: string;
   hearts?: number;
@@ -81,9 +82,10 @@ export class DialogueBox {
     }
 
     this.speakerTag.textContent = next.speaker;
-    if (next.npcId) {
+    const portraitTarget = next.portraitId ?? next.npcId;
+    if (portraitTarget) {
       this.portraitImg.style.display = 'block';
-      this.portraitImg.src = pixelArt.getPortraitUrl(next.npcId, next.expression ?? 'normal');
+      this.portraitImg.src = pixelArt.getPortraitUrl(portraitTarget, next.expression ?? 'normal');
       if (next.hearts !== undefined) {
         this.heartsEl.textContent = `${'♥'.repeat(next.hearts)}${'♡'.repeat(Math.max(0, 10 - next.hearts))}`;
       } else {

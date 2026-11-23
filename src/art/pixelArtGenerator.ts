@@ -1,6 +1,12 @@
 import * as THREE from 'three';
 import { PALETTE } from './palette';
-import { CropId, Direction, NpcId, PortraitExpression } from '../data/types';
+import {
+  CharacterSpriteId,
+  CropId,
+  Direction,
+  PortraitExpression,
+  PortraitId,
+} from '../data/types';
 
 export const PIXELS_PER_UNIT = 16;
 export const CAMERA_ELEVATION_RAD = THREE.MathUtils.degToRad(40);
@@ -103,9 +109,9 @@ class PixelArtRegistry {
     return this.iconUrls.get(iconKey) ?? this.iconUrls.get('cup_mystery')!;
   }
 
-  getPortraitUrl(npcId: NpcId, expr: PortraitExpression): string {
+  getPortraitUrl(id: PortraitId, expr: PortraitExpression): string {
     this.init();
-    return this.portraitUrls.get(`${npcId}_${expr}`) ?? '';
+    return this.portraitUrls.get(`${id}_${expr}`) ?? '';
   }
 
   /**
@@ -1087,6 +1093,104 @@ class PixelArtRegistry {
       this.textures.set('swing_basket', makePixelTexture(c));
     }
 
+    // Biển Mở / Đóng Quán Trà (24x24)
+    for (const isOpen of [false, true]) {
+      const [c, ctx] = makeCanvas(24, 24);
+      // Wooden post
+      px(ctx, 10, 14, PALETTE.outlineDark, 4, 9);
+      px(ctx, 11, 15, PALETTE.woodDark, 2, 7);
+      // Hanging wooden signboard
+      px(ctx, 2, 3, PALETTE.outlineDark, 20, 13);
+      px(ctx, 3, 4, isOpen ? PALETTE.amberGold : PALETTE.woodLight, 18, 11);
+      px(ctx, 4, 5, isOpen ? PALETTE.grassMid : PALETTE.roofDark, 16, 9);
+      // Pixel lettering / teacup emblem
+      px(ctx, 6, 8, PALETTE.creamLight, 12, 2);
+      px(ctx, 8, 11, isOpen ? PALETTE.amberGold : PALETTE.creamDark, 8, 1);
+      if (isOpen) {
+        px(ctx, 5, 6, PALETTE.whiteWarm, 2, 1);
+        px(ctx, 17, 6, PALETTE.whiteWarm, 2, 1);
+      }
+      this.textures.set(isOpen ? 'prop_shop_sign_open' : 'prop_shop_sign_closed', makePixelTexture(c));
+    }
+
+    // Cọc neo Bến Mây (16x24)
+    {
+      const [c, ctx] = makeCanvas(16, 24);
+      px(ctx, 5, 6, PALETTE.outlineDark, 6, 16);
+      px(ctx, 6, 7, PALETTE.woodMid, 4, 14);
+      px(ctx, 6, 7, PALETTE.woodBright, 1, 14);
+      px(ctx, 4, 4, PALETTE.outlineDark, 8, 3);
+      px(ctx, 5, 5, PALETTE.woodLight, 6, 2);
+      // Rope coil
+      px(ctx, 4, 11, PALETTE.creamDark, 8, 2);
+      px(ctx, 5, 13, PALETTE.amberWarm, 6, 2);
+      this.textures.set('prop_pier_post', makePixelTexture(c));
+    }
+
+    // Bong bóng order & biểu cảm khách (16x16)
+    const drawBubbleFrame = (drawInner: (ctx: CanvasRenderingContext2D) => void) => {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 2, 1, PALETTE.outlineDark, 12, 11);
+      px(ctx, 1, 2, PALETTE.outlineDark, 14, 9);
+      px(ctx, 2, 2, PALETTE.creamLight, 12, 9);
+      px(ctx, 3, 2, PALETTE.whiteWarm, 10, 2);
+      // Speech tail
+      px(ctx, 6, 12, PALETTE.outlineDark, 4, 2);
+      px(ctx, 7, 14, PALETTE.outlineDark, 2, 1);
+      px(ctx, 7, 11, PALETTE.creamLight, 2, 2);
+      drawInner(ctx);
+      return makePixelTexture(c);
+    };
+
+    this.textures.set(
+      'bubble_order',
+      drawBubbleFrame((ctx) => {
+        // Steaming tea cup icon inside bubble
+        px(ctx, 5, 6, PALETTE.outlineDark, 5, 4);
+        px(ctx, 6, 7, PALETTE.teaGreen, 3, 2);
+        px(ctx, 10, 7, PALETTE.outlineDark, 2, 2);
+        px(ctx, 6, 4, PALETTE.cloudWhite, 1, 1);
+        px(ctx, 8, 3, PALETTE.cloudWhite, 1, 2);
+      })
+    );
+
+    this.textures.set(
+      'bubble_waiting',
+      drawBubbleFrame((ctx) => {
+        // Sweat drop + "..." dots (waiting patiently)
+        px(ctx, 4, 7, PALETTE.woodDark, 2, 2);
+        px(ctx, 7, 7, PALETTE.woodDark, 2, 2);
+        px(ctx, 10, 7, PALETTE.woodDark, 2, 2);
+        px(ctx, 10, 3, PALETTE.waterBlue, 2, 3);
+        px(ctx, 10, 3, PALETTE.waterLight, 1, 1);
+      })
+    );
+
+    this.textures.set(
+      'bubble_happy',
+      drawBubbleFrame((ctx) => {
+        // Warm heart & gold sparkle
+        px(ctx, 5, 4, PALETTE.roofMid, 2, 2);
+        px(ctx, 9, 4, PALETTE.roofMid, 2, 2);
+        px(ctx, 5, 5, PALETTE.coralRed, 6, 3);
+        px(ctx, 6, 8, PALETTE.roofMid, 4, 1);
+        px(ctx, 7, 9, PALETTE.roofMid, 2, 1);
+        px(ctx, 12, 3, PALETTE.amberGold, 1, 1);
+      })
+    );
+
+    this.textures.set(
+      'bubble_sad',
+      drawBubbleFrame((ctx) => {
+        // Sad teardrop / blue ripple
+        px(ctx, 5, 5, PALETTE.navyDark, 2, 2);
+        px(ctx, 9, 5, PALETTE.navyDark, 2, 2);
+        px(ctx, 6, 8, PALETTE.outlinePlum, 4, 1);
+        px(ctx, 4, 7, PALETTE.waterBlue, 1, 2);
+        px(ctx, 11, 7, PALETTE.waterBlue, 1, 2);
+      })
+    );
+
     // Harvest ready pixel sparkle (8x8)
     {
       const [c, ctx] = makeCanvas(8, 8);
@@ -1171,7 +1275,7 @@ class PixelArtRegistry {
     oy: number,
     dir: Direction,
     frameIdx: number,
-    style: 'player' | NpcId
+    style: 'player' | CharacterSpriteId
   ): void {
     // Frame 0..3 = walk, 4..5 = idle breath, 6..7 = tool action
     const bobY =
@@ -1243,26 +1347,40 @@ class PixelArtRegistry {
       return;
     }
 
-    // Standard Stardew chibi 16x32 proportion for player, ong_dang, be_suong
+    // Standard Stardew chibi 16x32 proportion for player, ong_dang, be_suong & 4 guest types
     const fy = oy + 5 + bobY;
     const outfitMain =
       style === 'ong_dang'
         ? PALETTE.navyDark
-        : style === 'be_suong'
+        : style === 'be_suong' || style === 'guest_painter'
           ? PALETTE.grassMid
-          : PALETTE.tealDark;
+          : style === 'guest_traveler'
+            ? PALETTE.skyDeep
+            : style === 'guest_poet'
+              ? PALETTE.outlinePlum
+              : style === 'guest_merchant'
+                ? PALETTE.woodMid
+                : PALETTE.tealDark;
     const outfitHi =
       style === 'ong_dang'
         ? PALETTE.navyLight
-        : style === 'be_suong'
+        : style === 'be_suong' || style === 'guest_painter'
           ? PALETTE.grassLight
-          : PALETTE.tealLight;
+          : style === 'guest_traveler'
+            ? PALETTE.waterBlue
+            : style === 'guest_poet'
+              ? PALETTE.sakuraPink
+              : style === 'guest_merchant'
+                ? PALETTE.amberGold
+                : PALETTE.tealLight;
     const hairCol =
       style === 'ong_dang'
         ? PALETTE.hairSilver
-        : style === 'be_suong'
+        : style === 'be_suong' || style === 'guest_poet'
           ? PALETTE.hairBrown
-          : PALETTE.woodDark;
+          : style === 'guest_merchant'
+            ? PALETTE.navyDark
+            : PALETTE.woodDark;
 
     // Legs & boots
     px(ctx, ox + 5, fy + 21 + legSwing, PALETTE.outlineDark, 3, 5);
@@ -1308,6 +1426,27 @@ class PixelArtRegistry {
       // Glowing lantern held in hand
       px(ctx, ox + 13, fy + 17, PALETTE.outlineDark, 3, 5);
       px(ctx, ox + 14, fy + 18, PALETTE.amberGold, 1, 3);
+    } else if (style === 'guest_traveler') {
+      // Wide-brimmed traveler hat + backpack
+      px(ctx, ox + 1, fy + 2, PALETTE.outlineDark, 14, 3);
+      px(ctx, ox + 3, fy, PALETTE.woodMid, 10, 3);
+      px(ctx, ox + 2, fy + 2, PALETTE.woodBright, 12, 2);
+      px(ctx, ox + 12, fy + 14, PALETTE.woodDark, 3, 6);
+    } else if (style === 'guest_poet') {
+      // Dark flowing hair + plum scarf
+      px(ctx, ox + 3, fy + 1, hairCol, 10, 5);
+      px(ctx, ox + 4, fy + 12, PALETTE.cloudPink, 8, 3);
+      if (dir === 'up') px(ctx, ox + 4, fy + 4, hairCol, 8, 9);
+    } else if (style === 'guest_painter') {
+      // Red artist beret
+      px(ctx, ox + 2, fy + 1, PALETTE.roofMid, 11, 4);
+      px(ctx, ox + 4, fy, PALETTE.roofLight, 7, 2);
+      if (dir === 'up') px(ctx, ox + 4, fy + 5, PALETTE.woodDark, 8, 6);
+    } else if (style === 'guest_merchant') {
+      // Amber hood / headband + satchel
+      px(ctx, ox + 3, fy + 1, PALETTE.amberWarm, 10, 4);
+      px(ctx, ox + 5, fy + 2, PALETTE.amberGold, 6, 2);
+      px(ctx, ox + 12, fy + 15, PALETTE.amberGold, 3, 4);
     } else {
       // Player cozy straw/tea cap + warm hair
       px(ctx, ox + 3, fy + 2, hairCol, 10, 4);
@@ -1343,7 +1482,17 @@ class PixelArtRegistry {
 
   private buildCharacters(): void {
     const dirs: Direction[] = ['down', 'left', 'right', 'up'];
-    const styles: ('player' | NpcId)[] = ['player', 'may', 'co_lu', 'ong_dang', 'be_suong'];
+    const styles: ('player' | CharacterSpriteId)[] = [
+      'player',
+      'may',
+      'co_lu',
+      'ong_dang',
+      'be_suong',
+      'guest_traveler',
+      'guest_poet',
+      'guest_painter',
+      'guest_merchant',
+    ];
 
     for (const style of styles) {
       const cols = 8;
@@ -1359,17 +1508,33 @@ class PixelArtRegistry {
   }
 
   private buildPortraits(): void {
-    const npcs: NpcId[] = ['may', 'co_lu', 'ong_dang', 'be_suong'];
+    const chars: CharacterSpriteId[] = [
+      'may',
+      'co_lu',
+      'ong_dang',
+      'be_suong',
+      'guest_traveler',
+      'guest_poet',
+      'guest_painter',
+      'guest_merchant',
+    ];
     const exprs: PortraitExpression[] = ['normal', 'happy', 'sad'];
 
-    for (const npc of npcs) {
+    for (const npc of chars) {
       for (const expr of exprs) {
         const [c, ctx] = makeCanvas(64, 64);
         // Warm parchment portrait frame background
         px(ctx, 0, 0, PALETTE.skyLight, 64, 64);
         px(ctx, 0, 46, PALETTE.cloudWhite, 64, 18);
         px(ctx, 4, 4, PALETTE.creamLight, 56, 56);
-        px(ctx, 6, 6, npc === 'ong_dang' ? PALETTE.skyMid : PALETTE.skyLight, 52, 52);
+        px(
+          ctx,
+          6,
+          6,
+          npc === 'ong_dang' || npc === 'guest_traveler' ? PALETTE.skyMid : PALETTE.skyLight,
+          52,
+          52
+        );
 
         if (npc === 'may') {
           px(ctx, 18, 36, PALETTE.outlinePlum, 28, 22);
@@ -1399,7 +1564,7 @@ class PixelArtRegistry {
           // Silver beard
           px(ctx, 18, 32, PALETTE.hairSilver, 28, 18);
           px(ctx, 22, 34, PALETTE.whiteWarm, 20, 12);
-        } else {
+        } else if (npc === 'be_suong') {
           // Be Suong
           px(ctx, 16, 40, PALETTE.outlineDark, 32, 18);
           px(ctx, 18, 42, PALETTE.grassMid, 28, 16);
@@ -1412,6 +1577,40 @@ class PixelArtRegistry {
           px(ctx, 8, 12, PALETTE.outlineDark, 48, 8);
           px(ctx, 18, 5, PALETTE.creamMid, 28, 11);
           px(ctx, 24, 6, PALETTE.creamLight, 16, 6);
+        } else if (npc === 'guest_traveler') {
+          px(ctx, 14, 38, PALETTE.outlineDark, 36, 20);
+          px(ctx, 16, 40, PALETTE.skyDeep, 32, 18);
+          px(ctx, 16, 14, PALETTE.outlineDark, 32, 26);
+          px(ctx, 18, 16, PALETTE.skinBase, 28, 22);
+          // Traveler wide hat
+          px(ctx, 8, 12, PALETTE.outlineDark, 48, 6);
+          px(ctx, 16, 6, PALETTE.woodMid, 32, 8);
+          px(ctx, 10, 13, PALETTE.woodBright, 44, 3);
+        } else if (npc === 'guest_poet') {
+          px(ctx, 16, 40, PALETTE.outlinePlum, 32, 18);
+          px(ctx, 18, 42, PALETTE.cloudPink, 28, 16);
+          px(ctx, 14, 14, PALETTE.hairBrown, 36, 28);
+          px(ctx, 18, 18, PALETTE.skinLight, 28, 22);
+          px(ctx, 16, 14, PALETTE.hairBrown, 32, 7);
+        } else if (npc === 'guest_painter') {
+          px(ctx, 14, 40, PALETTE.outlineDark, 36, 18);
+          px(ctx, 16, 42, PALETTE.grassMid, 32, 16);
+          px(ctx, 16, 16, PALETTE.outlineDark, 32, 26);
+          px(ctx, 18, 18, PALETTE.skinBase, 28, 22);
+          // Red beret
+          px(ctx, 12, 10, PALETTE.outlineDark, 40, 9);
+          px(ctx, 14, 11, PALETTE.roofMid, 36, 7);
+          px(ctx, 18, 8, PALETTE.roofLight, 24, 4);
+        } else {
+          // guest_merchant
+          px(ctx, 14, 38, PALETTE.outlineDark, 36, 20);
+          px(ctx, 16, 40, PALETTE.woodMid, 32, 18);
+          px(ctx, 16, 15, PALETTE.outlineDark, 32, 26);
+          px(ctx, 18, 17, PALETTE.skinBase, 28, 22);
+          // Golden turban/headband
+          px(ctx, 14, 10, PALETTE.outlineDark, 36, 9);
+          px(ctx, 16, 11, PALETTE.amberWarm, 32, 7);
+          px(ctx, 24, 12, PALETTE.amberGold, 16, 4);
         }
 
         // Eyes & Mouth expression

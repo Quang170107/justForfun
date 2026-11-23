@@ -5,7 +5,7 @@ import { DryingRackVisualState } from '../systems/ProcessingSystem';
 import { Island } from './Island';
 
 export interface InteractiveZone {
-  id: 'sleep_door' | 'seed_shop' | 'drying_rack' | 'roast_wok' | 'brew_counter' | 'tea_table';
+  id: 'sleep_door' | 'seed_shop' | 'drying_rack' | 'roast_wok' | 'brew_counter' | 'tea_table' | 'open_sign';
   label: string;
   x: number;
   z: number;
@@ -32,6 +32,8 @@ export class Buildings {
 
   private beaconBeam!: THREE.Mesh;
   private dryingMat!: THREE.MeshBasicMaterial;
+  private openSignMat!: THREE.MeshBasicMaterial;
+  public readonly cloudPierPos = { x: 5.3, z: 7.3 };
   private dryingRackState: DryingRackVisualState = 'empty';
   private dryingSparkle!: THREE.Sprite;
   public readonly dryingRackPos = { x: 0.25, z: -0.6 };
@@ -49,6 +51,7 @@ export class Buildings {
     this.buildTeahouse(island);
     this.buildLighthouse(island);
     this.buildProcessingStations(island);
+    this.buildCloudPier(island);
     this.buildSmokeEmitters();
 
     this.group.add(this.homeRoofGroup);
@@ -473,6 +476,82 @@ export class Buildings {
       radius: 1.45,
       tableIndex: 3,
     });
+
+    // Biển đứng "Mở cửa / Đóng cửa" bên rìa hiên gỗ cạnh lối vào quán
+    const sx = 2.5;
+    const sz = -1.6;
+    const openSign = pixelArt.createYBillboard({
+      textureKey: 'prop_shop_sign_closed',
+      widthPx: 24,
+      heightPx: 24,
+      shadowScale: 1.0,
+      shadowYOffset: 0.036,
+      baseYOffset: 0.032,
+    });
+    openSign.group.position.set(sx, 0, sz);
+    this.openSignMat = openSign.material;
+    this.group.add(openSign.group);
+    island.addCollider({ minX: sx - 0.35, maxX: sx + 0.35, minZ: sz - 0.3, maxZ: sz + 0.3 });
+    this.zones.push({
+      id: 'open_sign',
+      label: 'Biển Mở/Đóng Quán',
+      x: sx,
+      z: sz + 0.55,
+      radius: 1.45,
+    });
+  }
+
+  private buildCloudPier(island: Island): void {
+    const px = this.cloudPierPos.x;
+    const pzStart = 5.0;
+    const len = 2.8;
+    const w = 2.4;
+
+    const pierTex = pixelArt.getClonedTexture('tile_wood_floor');
+    pierTex.wrapS = THREE.RepeatWrapping;
+    pierTex.wrapT = THREE.RepeatWrapping;
+    pierTex.repeat.set(2, 3);
+    const pierGeo = new THREE.PlaneGeometry(w, len);
+    pierGeo.rotateX(-Math.PI / 2);
+    const pierMesh = new THREE.Mesh(
+      pierGeo,
+      new THREE.MeshLambertMaterial({ map: pierTex })
+    );
+    pierMesh.position.set(px, 0.028, pzStart + len / 2);
+    this.group.add(pierMesh);
+
+    const postOffsets: [number, number][] = [
+      [px - 1.05, pzStart + 0.3],
+      [px + 1.05, pzStart + 0.3],
+      [px - 1.05, pzStart + len - 0.25],
+      [px + 1.05, pzStart + len - 0.25],
+    ];
+    for (const [ox, oz] of postOffsets) {
+      const post = pixelArt.createYBillboard({
+        textureKey: 'prop_pier_post',
+        widthPx: 16,
+        heightPx: 24,
+        shadowScale: 0.75,
+        shadowYOffset: 0.034,
+        baseYOffset: 0.032,
+      });
+      post.group.position.set(ox, 0, oz);
+      this.group.add(post.group);
+      island.addCollider({ minX: ox - 0.22, maxX: ox + 0.22, minZ: oz - 0.22, maxZ: oz + 0.22 });
+    }
+
+    // Đèn lồng bến mây soi lối cho khách lên đảo chiều tối
+    const pierLantern = pixelArt.createYBillboard({
+      textureKey: 'prop_lantern',
+      widthPx: 16,
+      heightPx: 24,
+      shadowScale: 0.65,
+      shadowYOffset: 0.034,
+      baseYOffset: 0.032,
+    });
+    pierLantern.group.position.set(px + 1.08, 0, pzStart + 1.3);
+    this.group.add(pierLantern.group);
+    this.addNightGlow(px + 1.08, 0.95, pzStart + 1.3, 2.0);
   }
 
   private buildLighthouse(island: Island): void {
@@ -670,6 +749,13 @@ export class Buildings {
         this.decorGroup.add(pot.group);
       }
     }
+  }
+
+  public setShopOpenSign(isOpen: boolean): void {
+    this.openSignMat.map = pixelArt.getTexture(
+      isOpen ? 'prop_shop_sign_open' : 'prop_shop_sign_closed'
+    );
+    this.openSignMat.needsUpdate = true;
   }
 
   public setDryingRackState(state: DryingRackVisualState): void {
