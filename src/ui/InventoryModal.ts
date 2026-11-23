@@ -11,12 +11,102 @@ export type InventoryModalTab = 'bag' | 'book' | 'relations';
 export class InventoryModal {
   private activeTab: InventoryModalTab = 'bag';
   private swapSourceIdx: number | null = null;
+  private dragSourceIdx: number | null = null;
 
   constructor(private tooltip: TooltipCallbacks) {}
 
   public setActiveTab(tab: InventoryModalTab): void {
     this.activeTab = tab;
     this.swapSourceIdx = null;
+    this.dragSourceIdx = null;
+  }
+
+  private createBagSlotEl(
+    idx: number,
+    slot: InventorySlot | null,
+    onSwapAndRerender: (fromIdx: number, toIdx: number) => void,
+    onSelectSwap: () => void
+  ): HTMLElement {
+    const div = document.createElement('div');
+    div.className = `inv-slot ${this.swapSourceIdx === idx ? 'active' : ''}`;
+    div.dataset.slotIndex = String(idx);
+
+    if (idx < 9) {
+      const k = document.createElement('span');
+      k.className = 'slot-key';
+      k.textContent = String(idx + 1);
+      div.appendChild(k);
+    }
+
+    if (slot) {
+      div.draggable = true;
+      const def = ITEMS[slot.itemId];
+      const img = document.createElement('img');
+      img.src = pixelArt.getIconUrl(def.iconKey);
+      img.draggable = false;
+      div.appendChild(img);
+
+      if (def.stackable && slot.count > 1) {
+        const cnt = document.createElement('span');
+        cnt.className = 'slot-count';
+        cnt.textContent = String(slot.count);
+        div.appendChild(cnt);
+      }
+      if (def.category !== 'tool' && def.category !== 'seed' && def.category !== 'decor') {
+        const st = document.createElement('span');
+        st.className = `slot-star q${slot.quality}`;
+        st.textContent = '★'.repeat(slot.quality);
+        div.appendChild(st);
+      }
+
+      div.addEventListener('mouseenter', (e) => {
+        if (this.dragSourceIdx === null) this.tooltip.show(slot, e.clientX, e.clientY);
+      });
+      div.addEventListener('mousemove', (e) => {
+        if (this.dragSourceIdx === null) this.tooltip.show(slot, e.clientX, e.clientY);
+      });
+      div.addEventListener('mouseleave', () => this.tooltip.hide());
+
+      div.addEventListener('dragstart', (e) => {
+        this.dragSourceIdx = idx;
+        this.tooltip.hide();
+        div.classList.add('dragging');
+        if (e.dataTransfer) {
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', String(idx));
+        }
+      });
+
+      div.addEventListener('dragend', () => {
+        this.dragSourceIdx = null;
+        div.classList.remove('dragging');
+      });
+    }
+
+    div.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+      if (this.dragSourceIdx !== idx) div.classList.add('drag-over');
+    });
+
+    div.addEventListener('dragleave', () => {
+      div.classList.remove('drag-over');
+    });
+
+    div.addEventListener('drop', (e) => {
+      e.preventDefault();
+      div.classList.remove('drag-over');
+      const raw = e.dataTransfer?.getData('text/plain');
+      const fromIdx =
+        raw !== undefined && raw !== '' ? Number.parseInt(raw, 10) : this.dragSourceIdx;
+      this.dragSourceIdx = null;
+      if (typeof fromIdx === 'number' && Number.isInteger(fromIdx) && fromIdx !== idx) {
+        onSwapAndRerender(fromIdx, idx);
+      }
+    });
+
+    div.onclick = onSelectSwap;
+    return div;
   }
 
   public render(
@@ -27,9 +117,23 @@ export class InventoryModal {
     npcLocations: Record<NpcId, string>,
     onSwapSlots: (a: number, b: number) => void,
     onReplayMemory: (npcId: NpcId, mem: MemoryCutscene) => void,
-    onClose: () => void
+    onClose: () => void,
+    onUiClick?: () => void
   ): void {
     modalBox.innerHTML = '';
+
+    const rerenderSelf = () =>
+      this.render(
+        modalBox,
+        inventory,
+        unlockedRecipes,
+        relations,
+        npcLocations,
+        onSwapSlots,
+        onReplayMemory,
+        onClose,
+        onUiClick
+      );
 
     const header = document.createElement('div');
     header.className = 'modal-header';
@@ -48,18 +152,11 @@ export class InventoryModal {
       btn.className = `pixel-btn small ${this.activeTab === id ? 'primary' : ''}`;
       btn.textContent = label;
       btn.onclick = () => {
+        onUiClick?.();
         this.activeTab = id;
         this.swapSourceIdx = null;
-        this.render(
-          modalBox,
-          inventory,
-          unlockedRecipes,
-          relations,
-          npcLocations,
-          onSwapSlots,
-          onReplayMemory,
-          onClose
-        );
+        this.dragSourceIdx = null;
+        rerenderSelf();
       };
       return btn;
     };
@@ -73,71 +170,58 @@ export class InventoryModal {
 
     if (this.activeTab === 'bag') {
       const hint = document.createElement('p');
-      hint.style.margin = '0 0 10px';
+      hint.style.margin = '0 0 8px';
       hint.style.fontSize = '14px';
       hint.textContent =
-        'Hàng đầu tiên (1–9) là thanh Hotbar. Nhấp hai ô để đổi vị trí hoặc gộp chồng vật phẩm cùng loại & cùng chất lượng ★.';
+        'Kéo thả hoặc nhấp 2 ô bất kỳ để sắp xếp, chuyển lên Hotbar (1–9) hoặc gộp chồng vật phẩm cùng chất lượng ★.';
       modalBox.appendChild(hint);
 
-      const grid = document.createElement('div');
-      grid.className = 'inv-grid';
+      const performSwap = (fromIdx: number, toIdx: number) => {
+        this.tooltip.hide();
+        onSwapSlots(fromIdx, toIdx);
+        onUiClick?.();
+        this.swapSourceIdx = null;
+        rerenderSelf();
+      };
 
-      inventory.forEach((slot, idx) => {
-        const div = document.createElement('div');
-        div.className = `inv-slot ${this.swapSourceIdx === idx ? 'active' : ''}`;
-        if (idx < 9) {
-          const k = document.createElement('span');
-          k.className = 'slot-key';
-          k.textContent = String(idx + 1);
-          div.appendChild(k);
-        }
-        if (slot) {
-          const def = ITEMS[slot.itemId];
-          const img = document.createElement('img');
-          img.src = pixelArt.getIconUrl(def.iconKey);
-          div.appendChild(img);
-
-          if (def.stackable && slot.count > 1) {
-            const cnt = document.createElement('span');
-            cnt.className = 'slot-count';
-            cnt.textContent = String(slot.count);
-            div.appendChild(cnt);
-          }
-          if (def.category !== 'tool' && def.category !== 'seed') {
-            const st = document.createElement('span');
-            st.className = `slot-star q${slot.quality}`;
-            st.textContent = '★'.repeat(slot.quality);
-            div.appendChild(st);
-          }
-
-          div.addEventListener('mouseenter', (e) => this.tooltip.show(slot, e.clientX, e.clientY));
-          div.addEventListener('mousemove', (e) => this.tooltip.show(slot, e.clientX, e.clientY));
-          div.addEventListener('mouseleave', () => this.tooltip.hide());
-        }
-
-        div.onclick = () => {
+      const makeSlot = (idx: number) =>
+        this.createBagSlotEl(idx, inventory[idx], performSwap, () => {
           this.tooltip.hide();
+          onUiClick?.();
           if (this.swapSourceIdx === null) {
             this.swapSourceIdx = idx;
+            rerenderSelf();
           } else {
-            onSwapSlots(this.swapSourceIdx, idx);
+            const from = this.swapSourceIdx;
             this.swapSourceIdx = null;
+            if (from !== idx) onSwapSlots(from, idx);
+            rerenderSelf();
           }
-          this.render(
-            modalBox,
-            inventory,
-            unlockedRecipes,
-            relations,
-            npcLocations,
-            onSwapSlots,
-            onReplayMemory,
-            onClose
-          );
-        };
-        grid.appendChild(div);
-      });
+        });
 
-      modalBox.appendChild(grid);
+      const hotbarLabel = document.createElement('div');
+      hotbarLabel.className = 'inv-section-label';
+      hotbarLabel.textContent = '🔧 Thanh Công Cụ Nhanh (Hotbar 1–9)';
+      modalBox.appendChild(hotbarLabel);
+
+      const hotbarRow = document.createElement('div');
+      hotbarRow.className = 'inv-hotbar-row';
+      for (let i = 0; i < 9; i++) {
+        hotbarRow.appendChild(makeSlot(i));
+      }
+      modalBox.appendChild(hotbarRow);
+
+      const bagLabel = document.createElement('div');
+      bagLabel.className = 'inv-section-label';
+      bagLabel.textContent = '🎒 Ngăn Chứa Túi Đồ (15 ô)';
+      modalBox.appendChild(bagLabel);
+
+      const bagGrid = document.createElement('div');
+      bagGrid.className = 'inv-bag-grid';
+      for (let i = 9; i < 24; i++) {
+        bagGrid.appendChild(makeSlot(i));
+      }
+      modalBox.appendChild(bagGrid);
     } else if (this.activeTab === 'book') {
       const recTitle = document.createElement('h3');
       recTitle.style.margin = '0 0 8px';

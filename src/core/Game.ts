@@ -129,6 +129,7 @@ export class Game {
   private dailySalesIncome = 0;
   private dailyNewRecipes: string[] = [];
   private dayStartHearts: Record<NpcId, number> = { may: 0, co_lu: 0, ong_dang: 0, be_suong: 0 };
+  private windChimeTimer = 18;
 
   constructor(canvas: HTMLCanvasElement) {
     pixelArt.init();
@@ -348,6 +349,7 @@ export class Game {
   private handleResize = (): void => {
     const scale = Math.max(1, Math.floor(Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H)));
     this.currentScale = scale;
+    document.documentElement.style.setProperty('--ui-scale', String(scale));
     const w = BASE_W * scale;
     const h = BASE_H * scale;
     this.renderer.setSize(w, h, false);
@@ -434,6 +436,23 @@ export class Game {
     this.ambientLight.intensity = lighting.ambientIntensity;
     this.dirLight.intensity = lighting.sunIntensity;
     (this.scene.background as THREE.Color).copy(lighting.tintColor).lerp(new THREE.Color(PALETTE.skyLight), 0.35);
+
+    this.audio.setBgmMood(
+      this.weather.currentWeather === 'rainy'
+        ? 'rain'
+        : lighting.nightFactor >= 0.55
+          ? 'night'
+          : 'day'
+    );
+    if (!blocked && !this.buildings.isInsideHome(this.player.x, this.player.z)) {
+      if (this.placedDecors.some((d) => d.itemId === 'decor_wind_chime')) {
+        this.windChimeTimer -= dt;
+        if (this.windChimeTimer <= 0) {
+          this.windChimeTimer = 20 + Math.random() * 10;
+          this.audio.playWindChime();
+        }
+      }
+    }
 
     const fogAlpha = Math.min(1, dt * 3);
     this.sceneFog.color.lerp(lighting.fogColor, fogAlpha);
@@ -816,7 +835,7 @@ export class Game {
         const npcEntity = this.npcs.get(spawned.npcId);
         if (npcEntity) npcEntity.hiddenDuringCafe = true;
       }
-      this.audio.playChime();
+      this.audio.playWindChime();
       this.ui.hud.showToast(`🍵 ${spawned.displayName} vừa bước qua Bến Mây ghé quán!`);
     }
 
@@ -1215,8 +1234,12 @@ export class Game {
       if (zone.id === 'open_sign') {
         const res = this.shop.toggleOpen(this.time.isTeahouseOpen());
         this.buildings.setShopOpenSign(res.isOpen);
-        if (res.ok) this.audio.playChime();
-        else this.audio.playBlip(320);
+        if (res.ok) {
+          if (res.isOpen) this.audio.playWindChime();
+          else this.audio.playChime();
+        } else {
+          this.audio.playBlip(320);
+        }
         this.ui.hud.showToast(res.message);
         return;
       }
@@ -1264,7 +1287,8 @@ export class Game {
       });
       this.buildings.syncPlacedDecors(this.placedDecors);
       this.weather.spawnBurst(targetTileX + 0.5, 0.5, targetTileZ + 0.5, PALETTE.amberGold, 8);
-      this.audio.playChime();
+      if (heldId === 'decor_wind_chime') this.audio.playWindChime();
+      else this.audio.playChime();
       this.ui.hud.showToast(`✨ Đã đặt ${ITEMS[heldId].name}!`);
       return;
     }
@@ -1444,7 +1468,8 @@ export class Game {
         const firstUnlock = this.relations.markMemorySeen(npcId, mem.heartsRequired);
         this.playMemoryCutscene(npcId, mem, firstUnlock);
       },
-      () => this.ui.closeModal()
+      () => this.ui.closeModal(),
+      () => this.audio.playUiClick()
     );
   }
 
@@ -1650,13 +1675,28 @@ export class Game {
         this.ui.modalBox,
         this.audio.bgmEnabled,
         this.audio.sfxEnabled,
+        this.audio.bgmVolume,
+        this.audio.sfxVolume,
+        this.audio.getBgmMoodLabel(),
         () => {
-          this.audio.bgmEnabled = !this.audio.bgmEnabled;
+          this.audio.setBgmEnabled(!this.audio.bgmEnabled);
+          this.audio.playUiClick();
           rerender();
         },
+        (vol) => {
+          this.audio.setBgmVolume(vol);
+        },
         () => {
-          this.audio.sfxEnabled = !this.audio.sfxEnabled;
+          this.audio.setSfxEnabled(!this.audio.sfxEnabled);
+          this.audio.playUiClick();
           rerender();
+        },
+        (vol) => {
+          this.audio.setSfxVolume(vol);
+        },
+        () => {
+          this.audio.playWindChime();
+          setTimeout(() => this.audio.playCoin(), 220);
         },
         () => {
           if (!document.fullscreenElement) {
@@ -1683,7 +1723,8 @@ export class Game {
         },
         () => this.openInventoryModal('relations'),
         () => {
-          this.audio.bgmEnabled = !this.audio.bgmEnabled;
+          this.audio.setBgmEnabled(!this.audio.bgmEnabled);
+          this.audio.playUiClick();
           rerender();
         },
         () => this.openSettingsModal(),

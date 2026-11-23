@@ -44,7 +44,7 @@ export class UIManager {
     | 'letter' = 'none';
 
   constructor(
-    audio: AudioSystem,
+    private audio: AudioSystem,
     onSelectHotbar: (idx: number) => void,
     onOpenInv: () => void,
     onOpenMenu: () => void
@@ -142,18 +142,26 @@ export class UIManager {
   }
 
   public openModal(kind: UIManager['activeModalKind']): void {
+    const wasClosed = !this.isModalOpen;
     this.hideTooltip();
     this.activeModalKind = kind;
     this.isModalOpen = true;
     this.modalOverlay.classList.remove('hidden');
+    if (wasClosed && kind !== 'letter' && kind !== 'day_summary') {
+      this.audio.playMenuOpen();
+    }
   }
 
   public closeModal(): void {
+    const wasOpen = this.isModalOpen;
     this.brewingScreen.cleanup();
     this.hideTooltip();
     this.isModalOpen = false;
     this.activeModalKind = 'none';
     this.modalOverlay.classList.add('hidden');
+    if (wasOpen) {
+      this.audio.playMenuClose();
+    }
   }
 
   public isBlockingGameplay(): boolean {

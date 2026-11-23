@@ -160,7 +160,7 @@ export class HUD {
           div.appendChild(cnt);
         }
 
-        if (def.category !== 'tool' && def.category !== 'seed') {
+        if (def.category !== 'tool' && def.category !== 'seed' && def.category !== 'decor') {
           const st = document.createElement('span');
           st.className = `slot-star q${slot.quality}`;
           st.textContent = '★'.repeat(slot.quality);

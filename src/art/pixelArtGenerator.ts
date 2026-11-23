@@ -82,6 +82,7 @@ class PixelArtRegistry {
     this.buildCharacters();
     this.buildPortraits();
     this.buildItemIcons();
+    this.buildUiFrames();
   }
 
   getTexture(key: string): THREE.CanvasTexture {
@@ -1902,6 +1903,85 @@ class PixelArtRegistry {
       px(ctx, 5, 5, PALETTE.tealLight, 6, 3);
       px(ctx, 7, 9, PALETTE.amberGold, 2, 3);
       px(ctx, 6, 11, PALETTE.coralRed, 4, 4);
+    });
+  }
+
+  private buildUiFrames(): void {
+    const setFrameVar = (varName: string, w: number, h: number, fn: (ctx: CanvasRenderingContext2D) => void) => {
+      const [c, ctx] = makeCanvas(w, h);
+      fn(ctx);
+      document.documentElement.style.setProperty(varName, `url("${c.toDataURL()}")`);
+    };
+
+    // Stardew wood + parchment 9-slice panel (24x24, 8px corner slices)
+    setFrameVar('--ui-panel-frame', 24, 24, (ctx) => {
+      px(ctx, 0, 0, PALETTE.outlineDark, 24, 24);
+      px(ctx, 1, 1, PALETTE.woodMid, 22, 22);
+      px(ctx, 1, 1, PALETTE.woodLight, 22, 1);
+      px(ctx, 1, 1, PALETTE.woodLight, 1, 22);
+      px(ctx, 1, 22, PALETTE.woodDark, 22, 1);
+      px(ctx, 22, 1, PALETTE.woodDark, 1, 22);
+      px(ctx, 3, 3, PALETTE.woodDark, 18, 18);
+      px(ctx, 4, 4, PALETTE.outlineDark, 16, 16);
+      px(ctx, 5, 5, PALETTE.creamDark, 14, 14);
+      px(ctx, 6, 6, PALETTE.creamLight, 12, 12);
+      // 4 brass corner rivets inside the 8x8 corners
+      for (const [rx, ry] of [
+        [2, 2],
+        [20, 2],
+        [2, 20],
+        [20, 20],
+      ]) {
+        px(ctx, rx, ry, PALETTE.amberGold, 2, 2);
+        px(ctx, rx, ry, PALETTE.whiteWarm, 1, 1);
+      }
+    });
+
+    // Parchment badge/pill frame (16x16, 5px corner slices)
+    setFrameVar('--ui-pill-frame', 16, 16, (ctx) => {
+      px(ctx, 0, 0, PALETTE.outlineDark, 16, 16);
+      px(ctx, 1, 1, PALETTE.whiteWarm, 14, 1);
+      px(ctx, 1, 1, PALETTE.whiteWarm, 1, 14);
+      px(ctx, 1, 14, PALETTE.creamDark, 14, 1);
+      px(ctx, 14, 1, PALETTE.creamDark, 1, 14);
+      px(ctx, 2, 2, PALETTE.creamMid, 12, 12);
+    });
+
+    // Standard wood button frame (16x16, 5px slices)
+    setFrameVar('--ui-btn-frame', 16, 16, (ctx) => {
+      px(ctx, 0, 0, PALETTE.outlineDark, 16, 16);
+      px(ctx, 1, 1, PALETTE.creamLight, 14, 1);
+      px(ctx, 1, 1, PALETTE.creamLight, 1, 14);
+      px(ctx, 1, 13, PALETTE.woodMid, 14, 2);
+      px(ctx, 14, 1, PALETTE.woodMid, 1, 14);
+      px(ctx, 2, 2, PALETTE.woodBright, 12, 11);
+    });
+
+    // Primary green button frame (16x16, 5px slices)
+    setFrameVar('--ui-btn-primary-frame', 16, 16, (ctx) => {
+      px(ctx, 0, 0, PALETTE.outlineDark, 16, 16);
+      px(ctx, 1, 1, PALETTE.grassBright, 14, 1);
+      px(ctx, 1, 1, PALETTE.grassBright, 1, 14);
+      px(ctx, 1, 13, PALETTE.grassDark, 14, 2);
+      px(ctx, 14, 1, PALETTE.grassDark, 1, 14);
+      px(ctx, 2, 2, PALETTE.grassLight, 12, 11);
+    });
+
+    // Inventory slot normal (16x16, 4px slices)
+    setFrameVar('--ui-slot-frame', 16, 16, (ctx) => {
+      px(ctx, 0, 0, PALETTE.woodDark, 16, 16);
+      px(ctx, 1, 1, PALETTE.creamLight, 14, 1);
+      px(ctx, 1, 1, PALETTE.creamLight, 1, 14);
+      px(ctx, 1, 14, PALETTE.creamDark, 14, 1);
+      px(ctx, 14, 1, PALETTE.creamDark, 1, 14);
+      px(ctx, 2, 2, PALETTE.creamMid, 12, 12);
+    });
+
+    // Inventory slot active/selected (16x16, 4px slices)
+    setFrameVar('--ui-slot-active-frame', 16, 16, (ctx) => {
+      px(ctx, 0, 0, PALETTE.outlineDark, 16, 16);
+      px(ctx, 1, 1, PALETTE.amberGold, 14, 14);
+      px(ctx, 3, 3, PALETTE.whiteWarm, 10, 10);
     });
   }
 }

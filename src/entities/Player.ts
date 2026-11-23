@@ -170,7 +170,7 @@ export class Player extends BillboardSprite {
 
         this.stepDist += movedDist;
         if (this.stepDist >= 1.15) {
-          audio.playStep();
+          audio.playStep(island.getSurfaceType(this.x, this.z));
           this.stepDist = 0;
         }
       } else {

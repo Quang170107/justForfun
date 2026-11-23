@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { pixelArt } from '../art/pixelArtGenerator';
+import { FootstepSurface } from '../core/AudioSystem';
 import {
   ISLAND_BUSHES,
   ISLAND_DEPTH,
@@ -336,6 +337,16 @@ export class Island {
       }
     }
     return false;
+  }
+
+  public getSurfaceType(x: number, z: number): FootstepSurface {
+    if (x >= 4.0 && x <= 7.0 && z >= 5.2) return 'wood';
+    const col = Math.floor(x) - ISLAND_MIN_X;
+    const row = Math.floor(z) - ISLAND_MIN_Z;
+    const ch = this.getGridChar(col, row);
+    if (ch === 'W') return 'wood';
+    if (ch === 'S') return 'stone';
+    return 'grass';
   }
 
   public update(elapsed: number, nightFactor = 0): void {

@@ -318,35 +318,72 @@ export class ShopAndMenuModal {
     modalBox: HTMLElement,
     bgmEnabled: boolean,
     sfxEnabled: boolean,
+    bgmVolume: number,
+    sfxVolume: number,
+    bgmMoodLabel: string,
     onToggleBgm: () => void,
+    onChangeBgmVolume: (vol: number) => void,
     onToggleSfx: () => void,
+    onChangeSfxVolume: (vol: number) => void,
+    onTestSfx: () => void,
     onToggleFullscreen: () => void,
     onClose: () => void
   ): void {
+    const bgmPct = Math.round(bgmVolume * 100);
+    const sfxPct = Math.round(sfxVolume * 100);
+
     modalBox.innerHTML = `
       <div class="modal-header">
-        <h2>🎛️ Cài Đặt</h2>
+        <h2>🎛️ Cài Đặt Âm Thanh & Hiển Thị</h2>
         <button id="btn-settings-close" class="pixel-btn small">Đóng</button>
       </div>
-      <div class="card-box" style="gap:10px;">
-        <div class="summary-row">
-          <span>🎵 Nhạc nền lo-fi</span>
-          <button id="btn-set-bgm" class="pixel-btn small ${bgmEnabled ? 'primary' : ''}">${bgmEnabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}</button>
+      <div class="card-box" style="gap:8px;">
+        <div class="settings-vol-row">
+          <span style="min-width:165px;">🎵 Nhạc nền (${bgmMoodLabel})</span>
+          <input id="slider-bgm-vol" class="pixel-slider" type="range" min="0" max="100" value="${bgmPct}" />
+          <b id="val-bgm-vol" style="min-width:42px;text-align:right;">${bgmPct}%</b>
+          <button id="btn-set-bgm" class="pixel-btn small ${bgmEnabled ? 'primary' : ''}">${bgmEnabled ? 'BẬT' : 'TẮT'}</button>
         </div>
-        <div class="summary-row">
-          <span>🔔 Hiệu ứng âm thanh (SFX)</span>
-          <button id="btn-set-sfx" class="pixel-btn small ${sfxEnabled ? 'primary' : ''}">${sfxEnabled ? 'ĐANG BẬT' : 'ĐANG TẮT'}</button>
+        <div class="settings-vol-row">
+          <span style="min-width:165px;">🔔 Âm lượng SFX</span>
+          <input id="slider-sfx-vol" class="pixel-slider" type="range" min="0" max="100" value="${sfxPct}" />
+          <b id="val-sfx-vol" style="min-width:42px;text-align:right;">${sfxPct}%</b>
+          <button id="btn-set-sfx" class="pixel-btn small ${sfxEnabled ? 'primary' : ''}">${sfxEnabled ? 'BẬT' : 'TẮT'}</button>
+          <button id="btn-test-sfx" class="pixel-btn small">Thử SFX</button>
         </div>
         <div class="summary-row" style="border-bottom:none;">
-          <span>🖥️ Toàn màn hình</span>
+          <span>🖥️ Chế độ toàn màn hình</span>
           <button id="btn-set-fs" class="pixel-btn small">${document.fullscreenElement ? 'Thoát Fullscreen' : 'Bật Fullscreen'}</button>
+        </div>
+      </div>
+      <div class="card-box" style="margin-top:10px;">
+        <strong>🔤 Kiểm tra hiển thị Font Pixel Tiếng Việt:</strong>
+        <div class="vn-font-preview">
+          Trà Quán Trên Mây • ầ ẩ ẫ ậ ằ ẳ ẵ ặ ề ể ễ ệ ồ ổ ỗ ộ ờ ở ỡ ợ ừ ử ữ ự ỳ ỷ ỹ ỵ đ Đ
         </div>
       </div>
     `;
     modalBox.querySelector('#btn-settings-close')!.addEventListener('click', onClose);
     modalBox.querySelector('#btn-set-bgm')!.addEventListener('click', onToggleBgm);
     modalBox.querySelector('#btn-set-sfx')!.addEventListener('click', onToggleSfx);
+    modalBox.querySelector('#btn-test-sfx')!.addEventListener('click', onTestSfx);
     modalBox.querySelector('#btn-set-fs')!.addEventListener('click', onToggleFullscreen);
+
+    const bgmSlider = modalBox.querySelector('#slider-bgm-vol') as HTMLInputElement;
+    const bgmVal = modalBox.querySelector('#val-bgm-vol')!;
+    bgmSlider.addEventListener('input', () => {
+      const pct = Number(bgmSlider.value);
+      bgmVal.textContent = `${pct}%`;
+      onChangeBgmVolume(pct / 100);
+    });
+
+    const sfxSlider = modalBox.querySelector('#slider-sfx-vol') as HTMLInputElement;
+    const sfxVal = modalBox.querySelector('#val-sfx-vol')!;
+    sfxSlider.addEventListener('input', () => {
+      const pct = Number(sfxSlider.value);
+      sfxVal.textContent = `${pct}%`;
+      onChangeSfxVolume(pct / 100);
+    });
   }
 
   public renderDaySummary(
