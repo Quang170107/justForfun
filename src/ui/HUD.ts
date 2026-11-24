@@ -34,6 +34,10 @@ export class HUD {
   ) {
     document.getElementById('btn-open-inv')!.addEventListener('click', onOpenInv);
     document.getElementById('btn-open-menu')!.addEventListener('click', onOpenMenu);
+    if (!import.meta.env.DEV) {
+      this.debugOverlayEl.classList.add('hidden');
+      this.debugOverlayEl.style.display = 'none';
+    }
   }
 
   public updateClockAndMeta(
@@ -122,7 +126,7 @@ export class HUD {
       particles: number;
     }
   ): void {
-    if (!visible) {
+    if (!import.meta.env.DEV || !visible) {
       this.debugOverlayEl.classList.add('hidden');
       return;
     }

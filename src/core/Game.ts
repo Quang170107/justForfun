@@ -110,6 +110,8 @@ export class Game {
   private readonly camRightVec = new THREE.Vector3();
   private readonly camUpVec = new THREE.Vector3();
   private readonly billboardTint = new THREE.Color('#ffffff');
+  private readonly skyLightColor = new THREE.Color(PALETTE.skyLight);
+  private readonly projVec = new THREE.Vector3();
   private readonly sceneFog = new THREE.Fog('#d9e6fa', 42, 160);
   private cameraShakeTime = 0;
   private cameraShakeDuration = 0.11;
@@ -338,6 +340,7 @@ export class Game {
     this.weather.currentWeather = data.weather;
     this.weather.tomorrowWeather = data.tomorrowWeather ?? rollRandomWeather();
 
+    this.weather.clearSkyLanterns();
     this.tiles.loadPlots(data.plots, this.upgrades.expandedFarmUnlocked);
     this.buildings.applyUpgrades(this.upgrades);
     this.buildings.syncPlacedDecors(this.placedDecors);
@@ -357,6 +360,10 @@ export class Game {
 
     this.player.x = data.playerPos.x;
     this.player.z = data.playerPos.z;
+    if (this.island.isBlocked(this.player.x, this.player.z, 0.3)) {
+      this.player.x = -2;
+      this.player.z = -2;
+    }
     this.player.direction = 'down';
     this.camFollowX = this.player.x;
     this.camFollowZ = this.player.z;
@@ -432,6 +439,30 @@ export class Game {
     return true;
   };
 
+  private addItemOrOverflowToBin = (
+    itemId: ItemId,
+    count: number,
+    quality: 1 | 2 | 3 = 1
+  ): 'bag' | 'bin' => {
+    if (this.addItem(itemId, count, quality)) {
+      return 'bag';
+    }
+    const def = ITEMS[itemId];
+    if (def.stackable) {
+      const existing = this.shippingBin.find((s) => s.itemId === itemId && s.quality === quality);
+      if (existing) {
+        existing.count += count;
+      } else {
+        this.shippingBin.push({ itemId, count, quality });
+      }
+    } else {
+      this.shippingBin.push({ itemId, count, quality });
+    }
+    this.buildings.setShippingBinHasItems(true);
+    this.ui.hud.showToast('📦 Túi đầy — quà đã được cất vào Thùng Giao Hàng!');
+    return 'bin';
+  };
+
   private consumeAtSlot = (slotIndex: number, count: number): boolean => {
     const slot = this.inventory[slotIndex];
     if (!slot || slot.count < count) return false;
@@ -467,7 +498,7 @@ export class Game {
     this.ambientLight.color.copy(lighting.tintColor);
     this.ambientLight.intensity = lighting.ambientIntensity;
     this.dirLight.intensity = lighting.sunIntensity;
-    (this.scene.background as THREE.Color).copy(lighting.tintColor).lerp(new THREE.Color(PALETTE.skyLight), 0.35);
+    (this.scene.background as THREE.Color).copy(lighting.tintColor).lerp(this.skyLightColor, 0.35);
 
     this.audio.setBgmMood(
       this.weather.currentWeather === 'rainy'
@@ -528,17 +559,19 @@ export class Game {
     this.ui.hud.setLocation(this.buildings.getLocationLabel(this.player.x, this.player.z));
     this.updateQuestHudHint();
     this.ui.hud.renderHotbar(this.inventory, this.selectedHotbarIndex);
-    this.ui.hud.updateDebugOverlay(this.debugVisible, {
-      fps: this.currentFps,
-      x: this.player.x,
-      z: this.player.z,
-      dir: this.player.direction,
-      tileInfo: this.getDebugTargetTileInfo(),
-      timeInfo: `Ngày ${this.time.day} - ${this.time.getFormattedTime()}`,
-      weather: this.weather.getWeatherLabel(),
-      tomorrowWeather: this.weather.getTomorrowWeatherLabel(),
-      particles: this.weather.getActiveParticleCount(),
-    });
+    if (import.meta.env.DEV) {
+      this.ui.hud.updateDebugOverlay(this.debugVisible, {
+        fps: this.currentFps,
+        x: this.player.x,
+        z: this.player.z,
+        dir: this.player.direction,
+        tileInfo: this.getDebugTargetTileInfo(),
+        timeInfo: `Ngày ${this.time.day} - ${this.time.getFormattedTime()}`,
+        weather: this.weather.getWeatherLabel(),
+        tomorrowWeather: this.weather.getTomorrowWeatherLabel(),
+        particles: this.weather.getActiveParticleCount(),
+      });
+    }
 
     // Cập nhật xoay camera mượt (~0.3s) & lerp theo dõi người chơi
     if (this.rotAnimElapsed < this.rotAnimDuration) {
@@ -1087,7 +1120,7 @@ export class Game {
         this.ui.hud.showToast(res.message);
 
         if (res.bonusGiftSeed && cust.data.npcId) {
-          this.addItem(res.bonusGiftSeed, 1, 2);
+          this.addItemOrOverflowToBin(res.bonusGiftSeed, 1, 2);
           this.ui.hud.showToast(
             `🎁 ${cust.data.displayName} tặng kèm 1 ${ITEMS[res.bonusGiftSeed].name}!`
           );
@@ -1256,7 +1289,9 @@ export class Game {
         if (!isSeedShopOpen(this.time.timeMinutes)) {
           this.audio.playBlip(280);
           this.ui.hud.showToast(
-            '⏰ Sạp Bé Sương chỉ mở từ 08:00 đến 18:00! (Nhấn F5 để tua giờ thử nhanh)'
+            import.meta.env.DEV
+              ? '⏰ Sạp Bé Sương chỉ mở từ 08:00 đến 18:00! (Nhấn F5 để tua giờ thử nhanh)'
+              : '⏰ Sạp Bé Sương chỉ mở từ 08:00 đến 18:00!'
           );
           return;
         }
@@ -1418,7 +1453,7 @@ export class Game {
   }
 
   private spawnWorldFlyingItem(iconKey: string, wx: number, wy: number, wz: number): void {
-    const proj = new THREE.Vector3(wx, wy, wz).project(this.camera);
+    const proj = this.projVec.set(wx, wy, wz).project(this.camera);
     const rect = this.renderer.domElement.getBoundingClientRect();
     const sx = rect.left + (proj.x * 0.5 + 0.5) * rect.width;
     const sy = rect.top + (-proj.y * 0.5 + 0.5) * rect.height;
@@ -1484,7 +1519,7 @@ export class Game {
           this.ui.hud.showToast(`✨ Ký ức mở khóa! Nhận +${mem.rewardMoney} Xu Mây!`);
         }
         if (mem.rewardItem) {
-          this.addItem(mem.rewardItem.itemId, mem.rewardItem.count, mem.rewardItem.quality);
+          this.addItemOrOverflowToBin(mem.rewardItem.itemId, mem.rewardItem.count, mem.rewardItem.quality);
           this.audio.playHarvest();
           this.ui.hud.showToast(
             `✨ Quà ký ức: +${mem.rewardItem.count} ${ITEMS[mem.rewardItem.itemId].name}!`
@@ -1580,8 +1615,8 @@ export class Game {
       }
       this.syncWorldStoryProps();
       this.audio.playWindChime();
-      this.addItem('leaf_green_tea_fresh', 2, 1);
-      this.addItem('chrysanthemum_dried', 1, 1);
+      this.addItemOrOverflowToBin('leaf_green_tea_fresh', 2, 1);
+      this.addItemOrOverflowToBin('chrysanthemum_dried', 1, 1);
       this.unlockLetter('letter_2_brewing');
       this.ui.hud.showToast('✨ Hiên Quán Trà đã sạch sẽ! (+2 Trà Xanh & +1 Hoa Cúc Khô)');
       this.openLetterModalById(
@@ -1642,8 +1677,8 @@ export class Game {
 
     if (this.time.day >= 2 && !this.story.unlockedLetters.includes('letter_2_brewing')) {
       markSeen('day2_letter_delivery');
-      this.addItem('leaf_green_tea_fresh', 2, 1);
-      this.addItem('chrysanthemum_dried', 1, 1);
+      this.addItemOrOverflowToBin('leaf_green_tea_fresh', 2, 1);
+      this.addItemOrOverflowToBin('chrysanthemum_dried', 1, 1);
       this.unlockLetter('letter_2_brewing');
       this.openLetterModalById('letter_2_brewing', '🍵 Đọc thư hướng dẫn pha trà!');
       return;
@@ -1657,7 +1692,7 @@ export class Game {
 
     if (this.time.day === 6 && !seen.has('day6_sakura_bloom')) {
       markSeen('day6_sakura_bloom');
-      this.addItem('seed_chrysanthemum', 2, 1);
+      this.addItemOrOverflowToBin('seed_chrysanthemum', 2, 1);
       this.ui.hud.showToast(
         '🌸 Sáng Hoa Anh Đào Nở Rộ! Bé Sương gửi tặng +2 Hạt Hoa Cúc trong túi!'
       );
@@ -1673,7 +1708,7 @@ export class Game {
     if (this.time.day === 12 && !seen.has('day12_migratory_birds')) {
       markSeen('day12_migratory_birds');
       this.relations.addPoints('co_lu', 25);
-      this.addItem('tea_roasted', 1, 2);
+      this.addItemOrOverflowToBin('tea_roasted', 1, 2);
       this.ui.hud.showToast(
         '🕊️ Ngày Chim Di Cư! Cò Lữ (+1 Trà Sao ★★) báo thấy lá thư cũ rơi trên lối ra Hải Đăng!'
       );
@@ -1681,7 +1716,7 @@ export class Game {
 
     if (this.time.day === 18 && !seen.has('day18_honey_market')) {
       markSeen('day18_honey_market');
-      this.addItem('honey', 2, 2);
+      this.addItemOrOverflowToBin('honey', 2, 2);
       this.ui.hud.showToast(
         '🍯 Phiên Chợ Mật Ong Tầng Mây! Bé Sương tặng +2 Mật Ong Rừng Mây ★★!'
       );
@@ -2086,6 +2121,7 @@ export class Game {
       this.buildings.setDryingRackState(this.processing.getVisualState());
       this.relations.onNewDay();
       this.shop.onNewDay(newWeather);
+      this.weather.clearSkyLanterns();
       this.buildings.setShopOpenSign(false);
       this.syncWorldStoryProps();
       for (const n of this.npcs.values()) {
@@ -2214,7 +2250,7 @@ export class Game {
     wz: number,
     variant: 'money' | 'heart' | 'info' = 'money'
   ): void {
-    const proj = new THREE.Vector3(wx, wy, wz).project(this.camera);
+    const proj = this.projVec.set(wx, wy, wz).project(this.camera);
     const rect = this.renderer.domElement.getBoundingClientRect();
     const sx = rect.left + (proj.x * 0.5 + 0.5) * rect.width;
     const sy = rect.top + (-proj.y * 0.5 + 0.5) * rect.height;

@@ -37,26 +37,26 @@ export const SHOP_UPGRADES: ShopUpgradeDef[] = [
   {
     id: 'wateringCanLevel',
     name: 'Bình Tưới Đồng (Tưới 3 Ô)',
-    price: 180,
+    price: 280,
     description: 'Tưới cùng lúc 3 ô đất ngang liền kề nhau trên đồi trà.',
   },
   {
     id: 'table4',
     name: 'Mở Rộng Quán: Bàn Thứ 4',
-    price: 220,
+    price: 420,
     description: 'Đặt thêm bàn trà gỗ thứ 4 trên hiên, tăng sức chứa phục vụ buổi chiều.',
   },
   {
     id: 'table5',
     name: 'Mở Rộng Quán: Bàn Thứ 5',
-    price: 340,
+    price: 750,
     description: 'Mở khóa bàn trà thứ 5 sang trọng để đón tối đa 5 bàn khách.',
     requires: 'table4',
   },
   {
     id: 'expandedFarmUnlocked',
     name: 'Mở Rộng Đồi Trà (10×6 Ô)',
-    price: 260,
+    price: 550,
     description: 'Khai khẩn thêm 12 ô đất màu mỡ ở phía đông đồi trà (từ 8×6 lên 10×6).',
   },
 ];

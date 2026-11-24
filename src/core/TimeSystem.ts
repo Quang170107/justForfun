@@ -32,6 +32,22 @@ export class TimeSystem {
   private readonly cDusk = new THREE.Color('#9a73b5');
   private readonly cNight = new THREE.Color('#42396e');
 
+  private readonly scratchTint = new THREE.Color();
+  private readonly scratchWeatherTint = new THREE.Color();
+  private readonly scratchFogDay = new THREE.Color();
+  private readonly scratchFogNight = new THREE.Color();
+  private readonly scratchFogColor = new THREE.Color();
+  private readonly lightingOut: DayLightingState = {
+    tintColor: this.scratchTint,
+    ambientIntensity: 0.9,
+    sunIntensity: 0.8,
+    nightFactor: 0,
+    overlayOpacity: 0.1,
+    fogColor: this.scratchFogColor,
+    fogNear: 42,
+    fogFar: 160,
+  };
+
   public update(dt: number, onPassOut: () => void): void {
     if (this.paused) return;
     this.timeMinutes += dt * this.gameMinutesPerSecond;
@@ -71,7 +87,7 @@ export class TimeSystem {
 
   public getLightingState(weather: WeatherType = 'sunny'): DayLightingState {
     const m = this.timeMinutes;
-    const tint = new THREE.Color();
+    const tint = this.scratchTint;
     let ambient = 0.9;
     let sun = 0.8;
     let nightFactor = 0;
@@ -114,26 +130,23 @@ export class TimeSystem {
 
     const cfg = WEATHER_CONFIG[weather];
     if (cfg.tintMix > 0) {
-      tint.lerp(new THREE.Color(cfg.tintHex), cfg.tintMix * (1 - nightFactor * 0.45));
+      this.scratchWeatherTint.set(cfg.tintHex);
+      tint.lerp(this.scratchWeatherTint, cfg.tintMix * (1 - nightFactor * 0.45));
     }
     ambient *= cfg.ambientMult;
     sun *= cfg.sunMult;
 
-    const overlayOpacity = 0.08 + nightFactor * 0.34 + cfg.overlayOpacityBoost;
-    const fogColor = new THREE.Color(cfg.fogTintDay).lerp(
-      new THREE.Color(cfg.fogTintNight),
-      nightFactor * 0.92
-    );
+    this.scratchFogDay.set(cfg.fogTintDay);
+    this.scratchFogNight.set(cfg.fogTintNight);
+    this.scratchFogColor.copy(this.scratchFogDay).lerp(this.scratchFogNight, nightFactor * 0.92);
 
-    return {
-      tintColor: tint,
-      ambientIntensity: ambient,
-      sunIntensity: sun,
-      nightFactor,
-      overlayOpacity,
-      fogColor,
-      fogNear: cfg.fogNear,
-      fogFar: cfg.fogFar,
-    };
+    this.lightingOut.ambientIntensity = ambient;
+    this.lightingOut.sunIntensity = sun;
+    this.lightingOut.nightFactor = nightFactor;
+    this.lightingOut.overlayOpacity = 0.08 + nightFactor * 0.34 + cfg.overlayOpacityBoost;
+    this.lightingOut.fogNear = cfg.fogNear;
+    this.lightingOut.fogFar = cfg.fogFar;
+
+    return this.lightingOut;
   }
 }

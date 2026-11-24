@@ -68,10 +68,28 @@ export class Buildings {
   private storyGlows: THREE.Sprite[] = [];
   private smokeParticles: { sprite: THREE.Sprite; originY: number; phase: number }[] = [];
 
+  private readonly decorPostMat = new THREE.MeshLambertMaterial({ color: 0x614132 });
+  private readonly decorLanternPostGeo = new THREE.BoxGeometry(0.08, 0.96, 0.08);
+  private readonly decorChimePostGeo = new THREE.BoxGeometry(0.08, 1.28, 0.08);
+  private readonly decorArmGeo = new THREE.BoxGeometry(0.08, 0.07, 0.24);
+  private readonly storyFlatGeo: THREE.PlaneGeometry;
+  private readonly sharedDynamicGeos: Set<THREE.BufferGeometry>;
+  private readonly sharedDynamicMats: Set<THREE.Material>;
+
   private homeRoofOpacity = 1;
   private teahouseRoofOpacity = 1;
 
   constructor(island: Island, upgrades: UpgradesState) {
+    this.storyFlatGeo = new THREE.PlaneGeometry(0.9, 0.9);
+    this.storyFlatGeo.rotateX(-Math.PI / 2);
+    this.sharedDynamicGeos = new Set([
+      this.decorLanternPostGeo,
+      this.decorChimePostGeo,
+      this.decorArmGeo,
+      this.storyFlatGeo,
+    ]);
+    this.sharedDynamicMats = new Set([this.decorPostMat]);
+
     this.islandRef = island;
     this.buildHomeCottage(island);
     this.buildSeedStall(island);
@@ -804,24 +822,41 @@ export class Buildings {
     this.syncColliderState(this.table5Collider, upgrades.tableCount >= 5);
   }
 
-  public syncPlacedDecors(decors: PlacedDecorState[]): void {
-    while (this.decorGroup.children.length > 0) {
-      this.decorGroup.remove(this.decorGroup.children[0]);
+  private clearDynamicGroup(group: THREE.Group): void {
+    group.traverse((obj) => {
+      const mesh = obj as THREE.Mesh | THREE.Sprite;
+      if ('geometry' in mesh && mesh.geometry && !this.sharedDynamicGeos.has(mesh.geometry)) {
+        mesh.geometry.dispose();
+      }
+      if ('material' in mesh && mesh.material) {
+        const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+        for (const m of mats) {
+          if (!this.sharedDynamicMats.has(m)) {
+            m.dispose();
+          }
+        }
+      }
+    });
+    while (group.children.length > 0) {
+      group.remove(group.children[0]);
     }
+  }
+
+  public syncPlacedDecors(decors: PlacedDecorState[]): void {
+    this.clearDynamicGroup(this.decorGroup);
     this.decorNightGlows = [];
     this.decorSwayProps = [];
 
-    const postMat = new THREE.MeshLambertMaterial({ color: 0x614132 });
     decors.forEach((dec, idx) => {
       const wx = dec.tileX + 0.5;
       const wz = dec.tileZ + 0.5;
 
       if (dec.itemId === 'decor_lantern') {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.96, 0.08), postMat);
+        const post = new THREE.Mesh(this.decorLanternPostGeo, this.decorPostMat);
         post.position.set(wx, 0.48, wz - 0.14);
         this.decorGroup.add(post);
 
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.24), postMat);
+        const arm = new THREE.Mesh(this.decorArmGeo, this.decorPostMat);
         arm.position.set(wx, 0.94, wz - 0.04);
         this.decorGroup.add(arm);
 
@@ -849,11 +884,11 @@ export class Buildings {
         this.decorGroup.add(glow);
         this.decorNightGlows.push(glow);
       } else if (dec.itemId === 'decor_wind_chime') {
-        const post = new THREE.Mesh(new THREE.BoxGeometry(0.08, 1.28, 0.08), postMat);
+        const post = new THREE.Mesh(this.decorChimePostGeo, this.decorPostMat);
         post.position.set(wx, 0.64, wz - 0.14);
         this.decorGroup.add(post);
 
-        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.07, 0.24), postMat);
+        const arm = new THREE.Mesh(this.decorArmGeo, this.decorPostMat);
         arm.position.set(wx, 1.24, wz - 0.04);
         this.decorGroup.add(arm);
 
@@ -932,23 +967,19 @@ export class Buildings {
     showLighthouseLetter: boolean,
     isFestivalDay: boolean
   ): void {
-    while (this.storyGroup.children.length > 0) {
-      this.storyGroup.remove(this.storyGroup.children[0]);
-    }
+    this.clearDynamicGroup(this.storyGroup);
     this.storyZones = [];
     this.storyGlows = [];
 
     const cleanedSet = new Set(cleanedSpots);
     for (const spot of CLEANUP_SPOTS) {
       if (cleanedSet.has(spot.id)) continue;
-      const flatGeo = new THREE.PlaneGeometry(0.9, 0.9);
-      flatGeo.rotateX(-Math.PI / 2);
       const flatMat = new THREE.MeshBasicMaterial({
         map: pixelArt.getTexture(spot.kind === 'leaves' ? 'prop_dust_leaves' : 'prop_dust_spot'),
         transparent: true,
         depthWrite: false,
       });
-      const mesh = new THREE.Mesh(flatGeo, flatMat);
+      const mesh = new THREE.Mesh(this.storyFlatGeo, flatMat);
       mesh.position.set(spot.x, 0.036, spot.z);
       this.storyGroup.add(mesh);
 

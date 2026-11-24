@@ -49,7 +49,9 @@ export class ShopSystem {
       return {
         ok: false,
         isOpen: false,
-        message: '⏰ Quán hoạt động từ 14:00 đến 20:00 (dùng F5 để tua giờ nếu muốn thử nhanh)!',
+        message: import.meta.env.DEV
+          ? '⏰ Quán hoạt động từ 14:00 đến 20:00 (dùng F5 để tua giờ nếu muốn thử nhanh)!'
+          : '⏰ Quán hoạt động từ 14:00 đến 20:00!',
       };
     }
     this.isManuallyOpen = true;

@@ -348,6 +348,14 @@ export class WeatherSystem {
     return count;
   }
 
+  public clearSkyLanterns(): void {
+    for (const l of this.skyLanterns) {
+      this.group.remove(l.sprite);
+      l.sprite.material.dispose();
+    }
+    this.skyLanterns = [];
+  }
+
   public spawnSkyLanterns(count = 16): void {
     const tex = pixelArt.getTexture('prop_sky_lantern');
     for (let i = 0; i < count; i++) {

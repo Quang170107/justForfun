@@ -55,6 +55,7 @@ export class Island {
   private buildTerrainFromData(): void {
     const tileGeo = new THREE.PlaneGeometry(1, 1);
     tileGeo.rotateX(-Math.PI / 2);
+    const matCache = new Map<string, THREE.MeshLambertMaterial>();
 
     for (let row = 0; row < ISLAND_DEPTH; row++) {
       for (let col = 0; col < ISLAND_WIDTH; col++) {
@@ -79,7 +80,12 @@ export class Island {
           tex = pixelArt.getTexture(`tile_grass_${variant}`);
         }
 
-        const tile = new THREE.Mesh(tileGeo, new THREE.MeshLambertMaterial({ map: tex }));
+        let mat = matCache.get(tex.uuid);
+        if (!mat) {
+          mat = new THREE.MeshLambertMaterial({ map: tex });
+          matCache.set(tex.uuid, mat);
+        }
+        const tile = new THREE.Mesh(tileGeo, mat);
         tile.position.set(x + 0.5, yPos, z + 0.5);
         this.group.add(tile);
       }
@@ -125,18 +131,25 @@ export class Island {
     underMesh.position.set(0, -cliffHeight - 0.5, 0);
     this.group.add(underMesh);
 
-    // Dây leo & rễ cây rủ xuống dọc 4 mép vách đảo
+    // Dây leo & rễ cây rủ xuống dọc 4 mép vách đảo (dùng chung geometry & material)
     const vineTex = pixelArt.getTexture('prop_hanging_vine');
     const rootTex = pixelArt.getTexture('prop_hanging_root');
+    const hangingGeo = new THREE.PlaneGeometry(1.0, 1.5);
+    const vineMat = new THREE.MeshBasicMaterial({
+      map: vineTex,
+      transparent: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
+    const rootMat = new THREE.MeshBasicMaterial({
+      map: rootTex,
+      transparent: true,
+      alphaTest: 0.5,
+      side: THREE.DoubleSide,
+    });
 
     const addHanging = (x: number, z: number, rotY: number, isRoot: boolean, idx: number) => {
-      const mat = new THREE.MeshBasicMaterial({
-        map: isRoot ? rootTex : vineTex,
-        transparent: true,
-        alphaTest: 0.5,
-        side: THREE.DoubleSide,
-      });
-      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(1.0, 1.5), mat);
+      const mesh = new THREE.Mesh(hangingGeo, isRoot ? rootMat : vineMat);
       mesh.position.set(x, -0.78, z);
       mesh.rotation.y = rotY;
       this.group.add(mesh);
