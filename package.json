@@ -3,17 +3,48 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "electron/main.cjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "electron:preview": "npm run build && electron .",
+    "build:exe": "npm run build && electron-builder --win portable --x64"
   },
   "dependencies": {
     "three": "^0.170.0"
   },
   "devDependencies": {
     "@types/three": "^0.170.0",
+    "electron": "^39.8.10",
+    "electron-builder": "^26.18.0",
     "typescript": "^5.6.3",
     "vite": "^6.0.0"
+  },
+  "build": {
+    "appId": "com.traquantrenmay.app",
+    "productName": "TraQuanTrenMay",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*"
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "portable": {
+      "artifactName": "TraQuanTrenMay.exe"
+    }
   }
 }

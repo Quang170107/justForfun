@@ -47,7 +47,15 @@ npm run build
 
 # 4. Chạy thử bản Production vừa build
 npm run preview
+
+# 5. Chạy thử bằng cửa sổ desktop Electron
+npm run electron:preview
+
+# 6. Đóng gói file .exe portable chạy trực tiếp trên Windows x64 (tạo release/TraQuanTrenMay.exe)
+npm run build:exe
 ```
+
+> **Chơi nhanh bằng file `.exe`:** Sau khi chạy `npm run build:exe` (hoặc tải bản phát hành), mở trực tiếp **`release/TraQuanTrenMay.exe`** để chơi độc lập không cần trình duyệt. Dữ liệu lưu game được giữ bền vững giữa các lần mở, hỗ trợ phím `F11` bật/tắt toàn màn hình.
 
 ---
 
