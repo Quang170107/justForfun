@@ -41,7 +41,10 @@ export class UIManager {
     | 'menu'
     | 'settings'
     | 'day_summary'
-    | 'letter' = 'none';
+    | 'letter'
+    | 'intro_cutscene'
+    | 'festival'
+    | 'spring_finale' = 'none';
 
   constructor(
     private audio: AudioSystem,
@@ -64,7 +67,10 @@ export class UIManager {
       if (
         e.target === this.modalOverlay &&
         this.activeModalKind !== 'letter' &&
-        this.activeModalKind !== 'day_summary'
+        this.activeModalKind !== 'day_summary' &&
+        this.activeModalKind !== 'intro_cutscene' &&
+        this.activeModalKind !== 'festival' &&
+        this.activeModalKind !== 'spring_finale'
       ) {
         this.closeModal();
       }
@@ -155,6 +161,7 @@ export class UIManager {
   public closeModal(): void {
     const wasOpen = this.isModalOpen;
     this.brewingScreen.cleanup();
+    this.shopMenuModal.cleanup();
     this.hideTooltip();
     this.isModalOpen = false;
     this.activeModalKind = 'none';

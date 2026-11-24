@@ -1,8 +1,9 @@
+import { CLEANUP_SPOTS, createDefaultStoryState } from '../data/story';
 import { DryingSlotState, InventorySlot, SaveData, TilePlotState } from '../data/types';
 import { rollRandomWeather } from '../data/weather';
 
 const SAVE_KEY = 'tra_quan_tren_may_save_v1';
-export const CURRENT_SAVE_VERSION = 3;
+export const CURRENT_SAVE_VERSION = 4;
 
 export const FARM_ORIGIN_X = -10;
 export const FARM_ORIGIN_Z = 0;
@@ -82,6 +83,7 @@ export function createDefaultSave(): SaveData {
     shippingBin: [],
     placedDecors: [],
     introRead: false,
+    story: createDefaultStoryState(),
   };
 }
 
@@ -132,6 +134,32 @@ export class SaveSystem {
       }
       mergedUpgrades.extraTableUnlocked = mergedUpgrades.tableCount >= 4;
 
+      const defaultStory = createDefaultStoryState();
+      const legacyProgress = !parsed.story && ((parsed.day ?? 1) > 1 || Boolean(parsed.introRead));
+      const mergedStory = parsed.story
+        ? {
+            ...defaultStory,
+            ...parsed.story,
+            cleanedSpots: Array.isArray(parsed.story.cleanedSpots)
+              ? parsed.story.cleanedSpots
+              : defaultStory.cleanedSpots,
+            unlockedLetters: Array.isArray(parsed.story.unlockedLetters) && parsed.story.unlockedLetters.length > 0
+              ? parsed.story.unlockedLetters
+              : defaultStory.unlockedLetters,
+            seenEvents: Array.isArray(parsed.story.seenEvents)
+              ? parsed.story.seenEvents
+              : defaultStory.seenEvents,
+          }
+        : legacyProgress
+          ? {
+              ...defaultStory,
+              introCompleted: true,
+              teahouseCleaned: true,
+              cleanedSpots: CLEANUP_SPOTS.map((s) => s.id),
+              unlockedLetters: ['letter_1_welcome', 'letter_2_brewing'],
+            }
+          : defaultStory;
+
       return {
         ...defaults,
         ...parsed,
@@ -155,6 +183,7 @@ export class SaveSystem {
         upgrades: mergedUpgrades,
         shippingBin: Array.isArray(parsed.shippingBin) ? parsed.shippingBin : [],
         placedDecors: Array.isArray(parsed.placedDecors) ? parsed.placedDecors : [],
+        story: mergedStory,
       };
     } catch {
       return null;

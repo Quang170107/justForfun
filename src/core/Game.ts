@@ -11,6 +11,14 @@ import {
   ShopUpgradeId,
 } from '../data/economy';
 import { NPCS } from '../data/npcs';
+import {
+  CLEANUP_SPOTS,
+  createDefaultStoryState,
+  DAY1_BE_SUONG_DIALOGUE,
+  DAY3_ONG_DANG_DIALOGUE,
+  GRANDMA_LETTERS,
+  GrandmaLetterDef,
+} from '../data/story';
 import { rollRandomWeather, WEATHER_CONFIG, WEATHER_FORECAST_TEXT } from '../data/weather';
 import {
   DailySummaryStats,
@@ -21,6 +29,7 @@ import {
   NpcId,
   PlacedDecorState,
   SaveData,
+  StoryState,
   TeaSteepTime,
   TeaWaterTemp,
   ToolId,
@@ -130,6 +139,7 @@ export class Game {
   private dailyNewRecipes: string[] = [];
   private dayStartHearts: Record<NpcId, number> = { may: 0, co_lu: 0, ong_dang: 0, be_suong: 0 };
   private windChimeTimer = 18;
+  private story: StoryState = createDefaultStoryState();
 
   constructor(canvas: HTMLCanvasElement) {
     pixelArt.init();
@@ -142,6 +152,15 @@ export class Game {
     this.shippingBin = loaded.shippingBin.map((s) => ({ ...s }));
     this.placedDecors = loaded.placedDecors.map((d) => ({ ...d }));
     this.introRead = loaded.introRead;
+    this.story = loaded.story
+      ? {
+          ...createDefaultStoryState(),
+          ...loaded.story,
+          cleanedSpots: [...loaded.story.cleanedSpots],
+          unlockedLetters: [...loaded.story.unlockedLetters],
+          seenEvents: [...loaded.story.seenEvents],
+        }
+      : createDefaultStoryState();
     this.time.day = loaded.day;
     this.time.season = loaded.season;
     this.time.timeMinutes = loaded.timeMinutes;
@@ -200,6 +219,7 @@ export class Game {
     this.buildings = new Buildings(this.island, this.upgrades);
     this.buildings.syncPlacedDecors(this.placedDecors);
     this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
+    this.syncWorldStoryProps();
     this.scene.add(this.buildings.group);
 
     this.weather = new WeatherSystem(loaded.weather, loaded.tomorrowWeather);
@@ -271,8 +291,10 @@ export class Game {
     this.applySaveData(saved);
     this.ui.hideTitleScreen();
     this.audio.unlockAndStartBgm();
-    if (!this.introRead) {
-      this.openGrandmaLetter();
+    if (!this.story.introCompleted && !this.introRead) {
+      this.openIntroSequence();
+    } else {
+      this.triggerMorningStoryEvents();
     }
   }
 
@@ -282,7 +304,7 @@ export class Game {
     this.applySaveData(fresh);
     this.ui.hideTitleScreen();
     this.audio.unlockAndStartBgm();
-    this.openGrandmaLetter();
+    this.openIntroSequence();
   }
 
   private applySaveData(data: SaveData): void {
@@ -301,6 +323,15 @@ export class Game {
     this.shippingBin = data.shippingBin.map((s) => ({ ...s }));
     this.placedDecors = data.placedDecors.map((d) => ({ ...d }));
     this.introRead = data.introRead;
+    this.story = data.story
+      ? {
+          ...createDefaultStoryState(),
+          ...data.story,
+          cleanedSpots: [...data.story.cleanedSpots],
+          unlockedLetters: [...data.story.unlockedLetters],
+          seenEvents: [...data.story.seenEvents],
+        }
+      : createDefaultStoryState();
     this.time.day = data.day;
     this.time.season = data.season;
     this.time.timeMinutes = data.timeMinutes;
@@ -311,6 +342,7 @@ export class Game {
     this.buildings.applyUpgrades(this.upgrades);
     this.buildings.syncPlacedDecors(this.placedDecors);
     this.buildings.setShippingBinHasItems(this.shippingBin.length > 0);
+    this.syncWorldStoryProps();
     this.processing = new ProcessingSystem(data.dryingRack);
     this.buildings.setDryingRackState(this.processing.getVisualState());
     this.brewing = new BrewingSystem(data.unlockedRecipes);
@@ -494,6 +526,7 @@ export class Game {
       lighting.overlayOpacity
     );
     this.ui.hud.setLocation(this.buildings.getLocationLabel(this.player.x, this.player.z));
+    this.updateQuestHudHint();
     this.ui.hud.renderHotbar(this.inventory, this.selectedHotbarIndex);
     this.ui.hud.updateDebugOverlay(this.debugVisible, {
       fps: this.currentFps,
@@ -741,7 +774,10 @@ export class Game {
       } else if (
         this.ui.isModalOpen &&
         this.ui.activeModalKind !== 'letter' &&
-        this.ui.activeModalKind !== 'day_summary'
+        this.ui.activeModalKind !== 'day_summary' &&
+        this.ui.activeModalKind !== 'intro_cutscene' &&
+        this.ui.activeModalKind !== 'festival' &&
+        this.ui.activeModalKind !== 'spring_finale'
       ) {
         this.ui.closeModal();
       } else if (!this.ui.isModalOpen && !this.isSleepingTransition) {
@@ -1031,6 +1067,8 @@ export class Game {
         const res = this.shop.serveCustomer(cust.data, teaId, quality);
         this.money += res.moneyEarned;
         this.dailyTeaIncome += res.moneyEarned;
+        this.story.totalCustomersServed += 1;
+        this.story.totalMoneyEarned += res.moneyEarned;
         this.spawnWorldFloatingText(`+${res.moneyEarned} Xu Mây`, cust.x, 1.7, cust.z, 'money');
         this.ui.hud.spawnHudMoneyPopup(res.moneyEarned);
         if (res.exactMatch) {
@@ -1068,8 +1106,14 @@ export class Game {
           ],
           {
             onComplete: () => {
+              const l3 = this.unlockLetter('letter_3_guests');
               if (res.memory && servedNpcId) {
                 this.playMemoryCutscene(servedNpcId, res.memory);
+                if (l3) {
+                  this.ui.hud.showToast('✉️ Mở khóa Lá Thư #3 trong Sổ Thư!');
+                }
+              } else if (l3) {
+                this.openLetterModalById('letter_3_guests', '💛 Thật ấm lòng!');
               }
             },
           }
@@ -1219,7 +1263,31 @@ export class Game {
         this.openShopModal();
         return;
       }
+      if (zone.id === 'cleanup_spot' && zone.spotId) {
+        this.handleCleanupSpot(zone.spotId, zone.x, zone.z);
+        return;
+      }
+      if (zone.id === 'letter_pickup' && zone.letterId) {
+        this.unlockLetter(zone.letterId);
+        this.weather.spawnSparkleBurst(zone.x, 0.7, zone.z, 12);
+        this.audio.playChime();
+        this.syncWorldStoryProps();
+        this.openLetterModalById(zone.letterId, '🏮 Cất vào Sổ Thư!');
+        return;
+      }
+      if (zone.id === 'festival_stand') {
+        this.triggerLanternFestival();
+        return;
+      }
       if (zone.id === 'brew_counter') {
+        if (!this.story.teahouseCleaned) {
+          this.audio.playBlip(280);
+          const remain = CLEANUP_SPOTS.length - this.story.cleanedSpots.length;
+          this.ui.hud.showToast(
+            `🧹 Hiên Quán Trà còn ${remain} điểm lá bụi! Hãy quét dọn sạch ngoài hiên trước khi pha trà nhé.`
+          );
+          return;
+        }
         this.openBrewingModal();
         return;
       }
@@ -1232,6 +1300,14 @@ export class Game {
         return;
       }
       if (zone.id === 'open_sign') {
+        if (!this.story.teahouseCleaned) {
+          this.audio.playBlip(280);
+          const remain = CLEANUP_SPOTS.length - this.story.cleanedSpots.length;
+          this.ui.hud.showToast(
+            `🧹 Hãy quét sạch ${remain} điểm lá bụi trên hiên Quán Trà trước khi mở cửa đón khách!`
+          );
+          return;
+        }
         const res = this.shop.toggleOpen(this.time.isTeahouseOpen());
         this.buildings.setShopOpenSign(res.isOpen);
         if (res.ok) {
@@ -1419,14 +1495,217 @@ export class Game {
   }
 
   // ---------------- Modals ----------------
-  private openGrandmaLetter(): void {
-    this.ui.openModal('letter');
-    this.ui.shopMenuModal.renderGrandmaLetter(this.ui.modalBox, () => {
-      this.introRead = true;
+  private openIntroSequence(): void {
+    this.ui.openModal('intro_cutscene');
+    this.ui.shopMenuModal.renderIntroCutscene(this.ui.modalBox, () => {
       this.ui.closeModal();
-      this.audio.unlockAndStartBgm();
-      this.persistGame(false);
+      this.unlockLetter('letter_1_welcome');
+      this.openLetterModalById(
+        'letter_1_welcome',
+        '🍵 Bắt đầu ngày mới trên Đảo Mây!',
+        () => {
+          this.introRead = true;
+          this.story.introCompleted = true;
+          this.audio.unlockAndStartBgm();
+          this.persistGame(false);
+          this.triggerMorningStoryEvents();
+        }
+      );
     });
+  }
+
+  private openLetterModalById(
+    letterId: string,
+    ctaLabel = '🍵 Đã đọc thư!',
+    onAfterClose?: () => void
+  ): void {
+    const letter = GRANDMA_LETTERS.find((l) => l.id === letterId) ?? GRANDMA_LETTERS[0];
+    this.ui.openModal('letter');
+    this.ui.shopMenuModal.renderGrandmaLetterModal(
+      this.ui.modalBox,
+      letter,
+      () => {
+        this.ui.closeModal();
+        onAfterClose?.();
+      },
+      ctaLabel
+    );
+  }
+
+  private unlockLetter(letterId: string): GrandmaLetterDef | null {
+    const letter = GRANDMA_LETTERS.find((l) => l.id === letterId);
+    if (!letter) return null;
+    if (!this.story.unlockedLetters.includes(letterId)) {
+      this.story.unlockedLetters.push(letterId);
+      return letter;
+    }
+    return null;
+  }
+
+  private syncWorldStoryProps(): void {
+    const showLetter4 =
+      this.time.day >= 12 && !this.story.unlockedLetters.includes('letter_4_lanterns');
+    const isFestivalDay = this.time.day === 24 && !this.story.lanternFestivalDone;
+    this.buildings.syncStoryProps(this.story.cleanedSpots, showLetter4, isFestivalDay);
+  }
+
+  private updateQuestHudHint(): void {
+    let hint: string | null = null;
+    if (!this.story.teahouseCleaned) {
+      hint = `🧹 Dọn hiên Quán Trà (${this.story.cleanedSpots.length}/${CLEANUP_SPOTS.length})`;
+    } else if (this.time.day === 24 && !this.story.lanternFestivalDone) {
+      hint = '🏮 Lễ Thả Đèn Mây: Gặp Đài Đèn phía Nam hiên quán!';
+    } else if (this.story.totalTeasBrewed === 0) {
+      hint = '🍵 Vào Quầy Pha Trà bên trong quán ủ tách trà đầu tiên';
+    } else if (this.story.totalCustomersServed === 0) {
+      hint = '☕ 14:00–20:00 lật Biển Mở Quán & phục vụ khách đầu tiên';
+    } else if (this.time.day === 28 && !this.story.springCompleted) {
+      hint = '🌸 Ngày 28 cuối Mùa Xuân — Ngủ tối để xem Tổng Kết!';
+    } else if (this.time.day >= 12 && !this.story.unlockedLetters.includes('letter_4_lanterns')) {
+      hint = '✉️ Tìm lá thư cũ gần lối ra Hải Đăng phía Đông';
+    }
+    this.ui.hud.setQuestHint(hint);
+  }
+
+  private handleCleanupSpot(spotId: string, wx: number, wz: number): void {
+    if (this.story.cleanedSpots.includes(spotId)) return;
+    this.story.cleanedSpots.push(spotId);
+    this.audio.playHarvest();
+    this.weather.spawnBurst(wx, 0.25, wz, PALETTE.creamDark, 8);
+
+    if (this.story.cleanedSpots.length >= CLEANUP_SPOTS.length) {
+      this.story.teahouseCleaned = true;
+      if (!this.story.seenEvents.includes('teahouse_cleaned')) {
+        this.story.seenEvents.push('teahouse_cleaned');
+      }
+      this.syncWorldStoryProps();
+      this.audio.playWindChime();
+      this.addItem('leaf_green_tea_fresh', 2, 1);
+      this.addItem('chrysanthemum_dried', 1, 1);
+      this.unlockLetter('letter_2_brewing');
+      this.ui.hud.showToast('✨ Hiên Quán Trà đã sạch sẽ! (+2 Trà Xanh & +1 Hoa Cúc Khô)');
+      this.openLetterModalById(
+        'letter_2_brewing',
+        '🍵 Tuyệt quá! Bắt đầu pha trà & mở quán!'
+      );
+    } else {
+      this.syncWorldStoryProps();
+      this.ui.hud.showToast(
+        `🧹 Đã quét dọn sạch góc hiên (${this.story.cleanedSpots.length}/${CLEANUP_SPOTS.length})`
+      );
+    }
+  }
+
+  private triggerLanternFestival(): void {
+    if (this.story.lanternFestivalDone) return;
+    this.story.lanternFestivalDone = true;
+    if (this.time.timeMinutes < 1170) {
+      this.time.timeMinutes = 1170; // 19:30 ánh hoàng hôn tím thả đèn rực rỡ
+    }
+    this.ui.openModal('festival');
+    this.ui.shopMenuModal.renderLanternFestivalModal(this.ui.modalBox, () => {
+      this.ui.closeModal();
+      this.weather.spawnSkyLanterns(18);
+      this.audio.playWindChime();
+      (Object.keys(NPCS) as NpcId[]).forEach((id) => {
+        const prev = this.relations.getHearts(id);
+        this.relations.addPoints(id, 50);
+        const now = this.relations.getHearts(id);
+        const ent = this.npcs.get(id);
+        if (ent && now > prev) {
+          this.weather.spawnSparkleBurst(ent.x, 1.4, ent.z, 10);
+        }
+      });
+      this.unlockLetter('letter_5_spring_end');
+      this.syncWorldStoryProps();
+      this.persistGame(false);
+      this.ui.hud.showToast(
+        '🏮 Đèn trời đã bay khắp Đảo Mây! (+50 điểm thân thiết cả 4 bạn & mở Lá Thư #5)'
+      );
+    });
+  }
+
+  private triggerMorningStoryEvents(): void {
+    const seen = new Set(this.story.seenEvents);
+    const markSeen = (evId: string) => {
+      if (!seen.has(evId)) {
+        seen.add(evId);
+        this.story.seenEvents.push(evId);
+      }
+    };
+
+    if (this.time.day === 1 && !seen.has('day1_be_suong_intro')) {
+      markSeen('day1_be_suong_intro');
+      this.ui.dialogue.open(DAY1_BE_SUONG_DIALOGUE);
+      return;
+    }
+
+    if (this.time.day >= 2 && !this.story.unlockedLetters.includes('letter_2_brewing')) {
+      markSeen('day2_letter_delivery');
+      this.addItem('leaf_green_tea_fresh', 2, 1);
+      this.addItem('chrysanthemum_dried', 1, 1);
+      this.unlockLetter('letter_2_brewing');
+      this.openLetterModalById('letter_2_brewing', '🍵 Đọc thư hướng dẫn pha trà!');
+      return;
+    }
+
+    if (this.time.day === 3 && !seen.has('day3_ong_dang_intro')) {
+      markSeen('day3_ong_dang_intro');
+      this.ui.dialogue.open(DAY3_ONG_DANG_DIALOGUE);
+      return;
+    }
+
+    if (this.time.day === 6 && !seen.has('day6_sakura_bloom')) {
+      markSeen('day6_sakura_bloom');
+      this.addItem('seed_chrysanthemum', 2, 1);
+      this.ui.hud.showToast(
+        '🌸 Sáng Hoa Anh Đào Nở Rộ! Bé Sương gửi tặng +2 Hạt Hoa Cúc trong túi!'
+      );
+    }
+
+    if (this.time.day >= 7 && !this.story.unlockedLetters.includes('letter_3_guests')) {
+      this.unlockLetter('letter_3_guests');
+      this.ui.hud.showToast(
+        '✉️ Bưu tá tầng mây vừa đặt Lá Thư #3 của Bà vào Hộp Thư (Tab → Thư & Lịch Xuân)!'
+      );
+    }
+
+    if (this.time.day === 12 && !seen.has('day12_migratory_birds')) {
+      markSeen('day12_migratory_birds');
+      this.relations.addPoints('co_lu', 25);
+      this.addItem('tea_roasted', 1, 2);
+      this.ui.hud.showToast(
+        '🕊️ Ngày Chim Di Cư! Cò Lữ (+1 Trà Sao ★★) báo thấy lá thư cũ rơi trên lối ra Hải Đăng!'
+      );
+    }
+
+    if (this.time.day === 18 && !seen.has('day18_honey_market')) {
+      markSeen('day18_honey_market');
+      this.addItem('honey', 2, 2);
+      this.ui.hud.showToast(
+        '🍯 Phiên Chợ Mật Ong Tầng Mây! Bé Sương tặng +2 Mật Ong Rừng Mây ★★!'
+      );
+    }
+
+    if (this.time.day >= 20 && !this.story.unlockedLetters.includes('letter_4_lanterns')) {
+      this.unlockLetter('letter_4_lanterns');
+      this.syncWorldStoryProps();
+      this.ui.hud.showToast('✉️ Ông Đăng nhặt gửi lại bạn Lá Thư #4 trong Hộp Thư!');
+    }
+
+    if (this.time.day === 24 && !this.story.lanternFestivalDone && !seen.has('day24_festival_invite')) {
+      markSeen('day24_festival_invite');
+      this.ui.hud.showToast(
+        '🏮 Hôm nay là Lễ Thả Đèn Mây 24 Xuân! Hãy tới Đài Đèn phía Nam hiên quán khai hội nhé!'
+      );
+    }
+
+    if (this.time.day === 28 && !seen.has('day28_final_day')) {
+      markSeen('day28_final_day');
+      this.ui.hud.showToast(
+        '🌸 Hôm nay là Ngày 28 — ngày cuối Mùa Xuân đầu tiên! Tận hưởng trọn vẹn nhé.'
+      );
+    }
   }
 
   private openInventoryModal(initialTab?: InventoryModalTab): void {
@@ -1469,7 +1748,16 @@ export class Game {
         this.playMemoryCutscene(npcId, mem, firstUnlock);
       },
       () => this.ui.closeModal(),
-      () => this.audio.playUiClick()
+      () => this.audio.playUiClick(),
+      {
+        story: this.story,
+        currentDay: this.time.day,
+        onReadLetter: (letter) => {
+          this.openLetterModalById(letter.id, '📜 Đóng lại', () => {
+            this.openInventoryModal('story');
+          });
+        },
+      }
     );
   }
 
@@ -1516,6 +1804,7 @@ export class Game {
 
         this.time.advanceMinutes(15);
         this.audio.playPourTea();
+        this.story.totalTeasBrewed += 1;
         const teaName = ITEMS[result.itemId].name;
         if (result.newlyUnlocked) {
           this.dailyNewRecipes.push(teaName);
@@ -1615,6 +1904,7 @@ export class Game {
           this.consumeAtSlot(slotIdx, 1);
           this.money += val;
           this.dailySalesIncome += val;
+          this.story.totalMoneyEarned += val;
           this.audio.playCoin();
           this.ui.hud.spawnHudMoneyPopup(val);
           this.ui.hud.showToast(`+${val} Xu Mây`);
@@ -1764,6 +2054,7 @@ export class Game {
       const shippingBinIncome = getShippingBinTotal(this.shippingBin);
       if (shippingBinIncome > 0) {
         this.money += shippingBinIncome;
+        this.story.totalMoneyEarned += shippingBinIncome;
       }
       this.shippingBin = [];
       this.buildings.setShippingBinHasItems(false);
@@ -1783,7 +2074,11 @@ export class Game {
       });
 
       this.time.startNewMorning();
-      const newWeather = this.weather.rollWeatherForNewDay();
+      let newWeather = this.weather.rollWeatherForNewDay();
+      if (this.time.day === 24) {
+        this.weather.currentWeather = 'sunny';
+        newWeather = 'sunny';
+      }
       const isRain = newWeather === 'rainy';
 
       this.farming.onNewDay(isRain);
@@ -1792,6 +2087,7 @@ export class Game {
       this.relations.onNewDay();
       this.shop.onNewDay(newWeather);
       this.buildings.setShopOpenSign(false);
+      this.syncWorldStoryProps();
       for (const n of this.npcs.values()) {
         n.syncToSchedule(this.time.timeMinutes, this.weather.currentWeather);
       }
@@ -1834,8 +2130,46 @@ export class Game {
         const weatherText = this.weather.getWeatherLabel();
         const rainNote = isRain ? ' Trời mưa nhẹ đã tự tưới hết đồi trà!' : '';
         this.ui.hud.showToast(`🌅 Ngày ${this.time.day} (Xuân) • ${weatherText}.${rainNote}`);
+
+        if (dayFinished === 28 && !this.story.springCompleted) {
+          this.unlockLetter('letter_5_spring_end');
+          this.story.springCompleted = true;
+          this.persistGame(false);
+          this.openSpringFinaleModal();
+        } else {
+          this.triggerMorningStoryEvents();
+        }
       });
     }, 450);
+  }
+
+  private openSpringFinaleModal(): void {
+    const npcHearts: Record<NpcId, number> = {
+      may: this.relations.getHearts('may'),
+      co_lu: this.relations.getHearts('co_lu'),
+      ong_dang: this.relations.getHearts('ong_dang'),
+      be_suong: this.relations.getHearts('be_suong'),
+    };
+    this.ui.openModal('spring_finale');
+    this.ui.shopMenuModal.renderSpringFinaleModal(
+      this.ui.modalBox,
+      {
+        totalTeasBrewed: this.story.totalTeasBrewed,
+        totalCustomersServed: this.story.totalCustomersServed,
+        unlockedRecipesCount: this.brewing.unlockedRecipes.size,
+        unlockedLettersCount: this.story.unlockedLetters.length,
+        totalLettersCount: GRANDMA_LETTERS.length,
+        totalMoneyEarned: this.story.totalMoneyEarned,
+        currentMoney: this.money,
+        lanternFestivalDone: this.story.lanternFestivalDone,
+        npcHearts,
+      },
+      () => {
+        this.ui.closeModal();
+        this.ui.hud.showToast('🌸 Vòng Mùa Xuân mới bắt đầu — chúc bạn chơi tự do thật vui!');
+        this.triggerMorningStoryEvents();
+      }
+    );
   }
 
   private persistGame(showToast: boolean): void {
@@ -1859,6 +2193,7 @@ export class Game {
       shippingBin: this.shippingBin,
       placedDecors: this.placedDecors,
       introRead: this.introRead,
+      story: this.story,
     };
     const ok = this.saveSystem.save(data);
     if (showToast && ok) {

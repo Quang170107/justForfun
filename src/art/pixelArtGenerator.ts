@@ -975,6 +975,71 @@ class PixelArtRegistry {
       this.textures.set('prop_bird_1', makePixelTexture(c1));
     }
 
+    // Story cleanup: fallen autumn leaves & twigs on teahouse deck (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 3, 7, PALETTE.woodDark, 10, 5);
+      px(ctx, 4, 6, PALETTE.amberWarm, 4, 3);
+      px(ctx, 7, 8, PALETTE.roofLight, 5, 3);
+      px(ctx, 9, 5, PALETTE.amberGold, 3, 3);
+      px(ctx, 2, 10, PALETTE.creamDark, 2, 2);
+      px(ctx, 11, 10, PALETTE.amberGold, 2, 2);
+      this.textures.set('prop_dust_leaves', makePixelTexture(c));
+    }
+
+    // Story cleanup: dusty deck cobweb/smudge patch (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 3, 5, PALETTE.creamDark, 9, 6);
+      px(ctx, 5, 4, PALETTE.cloudWhite, 5, 5);
+      px(ctx, 4, 9, PALETTE.rockMid, 7, 2);
+      px(ctx, 2, 7, PALETTE.creamMid, 2, 2);
+      px(ctx, 11, 6, PALETTE.creamMid, 2, 2);
+      this.textures.set('prop_dust_spot', makePixelTexture(c));
+    }
+
+    // Story collectible grandma letter on lighthouse path (16x16)
+    {
+      const [c, ctx] = makeCanvas(16, 16);
+      px(ctx, 2, 5, PALETTE.outlineDark, 12, 8);
+      px(ctx, 3, 6, PALETTE.creamLight, 10, 6);
+      px(ctx, 3, 6, PALETTE.creamDark, 10, 1);
+      px(ctx, 6, 8, PALETTE.roofMid, 4, 3);
+      px(ctx, 7, 8, PALETTE.amberGold, 2, 2);
+      this.textures.set('prop_letter_pickup', makePixelTexture(c));
+    }
+
+    // Day 24 Sky Lantern Festival stand (24x28)
+    {
+      const [c, ctx] = makeCanvas(24, 28);
+      // Bamboo frame & awning
+      px(ctx, 4, 4, PALETTE.woodDark, 2, 23);
+      px(ctx, 18, 4, PALETTE.woodDark, 2, 23);
+      px(ctx, 2, 2, PALETTE.outlineDark, 20, 4);
+      px(ctx, 3, 3, PALETTE.roofMid, 18, 2);
+      // Hanging festival banner & sky lanterns
+      px(ctx, 8, 6, PALETTE.outlineDark, 8, 9);
+      px(ctx, 9, 7, PALETTE.amberGold, 6, 7);
+      px(ctx, 10, 8, PALETTE.coralRed, 4, 4);
+      px(ctx, 5, 16, PALETTE.woodMid, 14, 10);
+      px(ctx, 6, 17, PALETTE.woodBright, 12, 3);
+      px(ctx, 7, 13, PALETTE.amberWarm, 4, 4);
+      px(ctx, 13, 13, PALETTE.amberGold, 4, 4);
+      this.textures.set('prop_festival_stand', makePixelTexture(c));
+    }
+
+    // Glowing floating sky lantern (12x16)
+    {
+      const [c, ctx] = makeCanvas(12, 16);
+      px(ctx, 3, 2, PALETTE.outlineDark, 6, 10);
+      px(ctx, 4, 2, PALETTE.roofMid, 4, 2);
+      px(ctx, 3, 4, PALETTE.coralRed, 6, 6);
+      px(ctx, 4, 5, PALETTE.amberWarm, 4, 5);
+      px(ctx, 5, 8, PALETTE.whiteWarm, 2, 3);
+      px(ctx, 4, 12, PALETTE.amberGold, 4, 2);
+      this.textures.set('prop_sky_lantern', makePixelTexture(c));
+    }
+
     // Elliptical pixel shadow (16x8)
     {
       const [c, ctx] = makeCanvas(16, 8);

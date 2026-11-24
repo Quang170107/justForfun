@@ -1,3 +1,4 @@
+import { PALETTE } from '../art/palette';
 import { pixelArt } from '../art/pixelArtGenerator';
 import { getItemSellValue, ITEMS } from '../data/crops';
 import { GRANDMA_LETTER_LINES } from '../data/dialogues';
@@ -9,12 +10,34 @@ import {
   SHOP_UPGRADES,
   ShopUpgradeId,
 } from '../data/economy';
-import { DailySummaryStats, InventorySlot, ItemId, UpgradesState } from '../data/types';
+import { NPCS } from '../data/npcs';
+import { GrandmaLetterDef, INTRO_SLIDES, LANTERN_FESTIVAL_WISHES } from '../data/story';
+import { DailySummaryStats, InventorySlot, ItemId, NpcId, UpgradesState } from '../data/types';
 
 export type ShopTabKind = 'seeds' | 'decor' | 'upgrades';
 
+export interface SpringFinaleStats {
+  totalTeasBrewed: number;
+  totalCustomersServed: number;
+  unlockedRecipesCount: number;
+  unlockedLettersCount: number;
+  totalLettersCount: number;
+  totalMoneyEarned: number;
+  currentMoney: number;
+  lanternFestivalDone: boolean;
+  npcHearts: Record<NpcId, number>;
+}
+
 export class ShopAndMenuModal {
   public shopTab: ShopTabKind = 'seeds';
+  private animRafId: number | null = null;
+
+  public cleanup(): void {
+    if (this.animRafId !== null) {
+      cancelAnimationFrame(this.animRafId);
+      this.animRafId = null;
+    }
+  }
 
   private renderBuyItemCard(
     id: ItemId,
@@ -444,5 +467,283 @@ export class ShopAndMenuModal {
       </div>
     `;
     modalBox.querySelector('#btn-summary-next')!.addEventListener('click', onContinue);
+  }
+
+  public renderIntroCutscene(modalBox: HTMLElement, onFinish: () => void): void {
+    this.cleanup();
+    let slideIdx = 0;
+
+    modalBox.innerHTML = `
+      <div class="modal-header">
+        <h2>⛵ Hành Trình Lên Đảo Trà Trên Mây</h2>
+        <button id="btn-intro-skip" class="pixel-btn small">Bỏ qua</button>
+      </div>
+      <div class="story-stage-wrap">
+        <canvas id="intro-stage-canvas" width="360" height="144"></canvas>
+        <div class="card-box" style="width:100%;font-size:16px;line-height:1.5;">
+          <p id="intro-caption" style="margin:0;">${INTRO_SLIDES[0].caption}</p>
+        </div>
+      </div>
+      <div style="margin-top:12px;text-align:right;">
+        <button id="btn-intro-next" class="pixel-btn primary">${INTRO_SLIDES[0].buttonText}</button>
+      </div>
+    `;
+
+    const canvas = modalBox.querySelector('#intro-stage-canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const captionEl = modalBox.querySelector('#intro-caption')!;
+    const nextBtn = modalBox.querySelector('#btn-intro-next') as HTMLButtonElement;
+    const skipBtn = modalBox.querySelector('#btn-intro-skip') as HTMLButtonElement;
+
+    let tick = 0;
+    const drawFrame = () => {
+      tick += 0.03;
+      ctx.imageSmoothingEnabled = false;
+      // Dawn cloud sky
+      ctx.fillStyle = PALETTE.skyLight;
+      ctx.fillRect(0, 0, 360, 144);
+      ctx.fillStyle = PALETTE.cloudPink;
+      ctx.fillRect(0, 56, 360, 32);
+
+      // Drifting upper clouds
+      ctx.fillStyle = PALETTE.cloudWhite;
+      for (let i = 0; i < 6; i++) {
+        const cx = Math.floor(((i * 75 - tick * 14) % 420 + 420) % 420) - 40;
+        const cy = 18 + (i % 3) * 14;
+        ctx.fillRect(cx, cy, 34, 10);
+        ctx.fillRect(cx + 6, cy - 5, 20, 6);
+      }
+
+      // Floating Tea Island appearing ahead (closer on slide 1)
+      const islandX = slideIdx === 0 ? 225 : 155;
+      const islandW = slideIdx === 0 ? 96 : 168;
+      const islandY = slideIdx === 0 ? 64 : 56;
+      // Cliff root & dirt
+      ctx.fillStyle = PALETTE.soilDark;
+      ctx.fillRect(islandX + 8, islandY + 12, islandW - 16, 18);
+      ctx.fillStyle = PALETTE.grassDark;
+      ctx.fillRect(islandX, islandY + 8, islandW, 6);
+      ctx.fillStyle = PALETTE.grassMid;
+      ctx.fillRect(islandX + 2, islandY + 4, islandW - 4, 6);
+      // Teahouse roof silhouette & lantern
+      const roofX = islandX + Math.floor(islandW * 0.45);
+      ctx.fillStyle = PALETTE.woodMid;
+      ctx.fillRect(roofX, islandY - 12, 34, 18);
+      ctx.fillStyle = PALETTE.roofMid;
+      ctx.fillRect(roofX - 4, islandY - 22, 42, 11);
+      ctx.fillStyle = PALETTE.amberGold;
+      ctx.fillRect(roofX + 12, islandY - 6, 8, 8);
+      // Sakura & pine trees
+      ctx.fillStyle = PALETTE.grassDark;
+      ctx.fillRect(islandX + 12, islandY - 14, 14, 20);
+      ctx.fillStyle = PALETTE.sakuraPink;
+      ctx.fillRect(islandX + 28, islandY - 12, 14, 12);
+
+      // Scrolling Cloud Sea waves in foreground
+      ctx.fillStyle = PALETTE.skyMid;
+      ctx.fillRect(0, 96, 360, 48);
+      ctx.fillStyle = PALETTE.cloudWhite;
+      for (let i = 0; i < 12; i++) {
+        const wx = Math.floor(((i * 38 + tick * 18) % 400 + 400) % 400) - 24;
+        const wy = 98 + (i % 3) * 14 + Math.round(Math.sin(tick * 2 + i) * 2);
+        ctx.fillRect(wx, wy, 28, 8);
+      }
+
+      // Cozy Cloud Boat gliding across sea
+      const boatX = slideIdx === 0 ? 64 + Math.round(Math.sin(tick * 1.4) * 10) : 112;
+      const boatY = 86 + Math.round(Math.sin(tick * 3.1) * 3);
+      ctx.fillStyle = PALETTE.outlineDark;
+      ctx.fillRect(boatX - 2, boatY + 4, 52, 12);
+      ctx.fillStyle = PALETTE.woodMid;
+      ctx.fillRect(boatX, boatY + 5, 48, 9);
+      ctx.fillStyle = PALETTE.woodBright;
+      ctx.fillRect(boatX + 4, boatY + 6, 40, 4);
+      // Mast & sail + warm bow lantern
+      ctx.fillStyle = PALETTE.woodDark;
+      ctx.fillRect(boatX + 22, boatY - 24, 3, 30);
+      ctx.fillStyle = PALETTE.creamLight;
+      ctx.fillRect(boatX + 10, boatY - 22, 12, 22);
+      ctx.fillRect(boatX + 25, boatY - 18, 13, 18);
+      ctx.fillStyle = PALETTE.coralRed;
+      ctx.fillRect(boatX + 42, boatY - 2, 5, 6);
+      ctx.fillStyle = PALETTE.amberGold;
+      ctx.fillRect(boatX + 43, boatY, 3, 3);
+      // Tiny passenger silhouette
+      ctx.fillStyle = PALETTE.navyDark;
+      ctx.fillRect(boatX + 14, boatY - 2, 5, 7);
+      ctx.fillStyle = PALETTE.skinBase;
+      ctx.fillRect(boatX + 14, boatY - 7, 5, 5);
+
+      this.animRafId = requestAnimationFrame(drawFrame);
+    };
+    drawFrame();
+
+    const finishIntro = () => {
+      this.cleanup();
+      onFinish();
+    };
+    skipBtn.addEventListener('click', finishIntro);
+    nextBtn.addEventListener('click', () => {
+      if (slideIdx === 0) {
+        slideIdx = 1;
+        captionEl.textContent = INTRO_SLIDES[1].caption;
+        nextBtn.textContent = INTRO_SLIDES[1].buttonText;
+      } else {
+        finishIntro();
+      }
+    });
+  }
+
+  public renderGrandmaLetterModal(
+    modalBox: HTMLElement,
+    letter: GrandmaLetterDef,
+    onClose: () => void,
+    ctaLabel = '🍵 Đã đọc thư!'
+  ): void {
+    this.cleanup();
+    modalBox.innerHTML = `
+      <div class="modal-header">
+        <h2>✉️ ${letter.title}</h2>
+      </div>
+      <div class="card-box" style="padding:16px;font-size:16px;line-height:1.55;">
+        ${letter.lines.map((l) => `<p style="margin:6px 0;">${l}</p>`).join('')}
+      </div>
+      <div style="margin-top:14px;text-align:right;">
+        <button id="btn-story-letter-ok" class="pixel-btn primary">${ctaLabel}</button>
+      </div>
+    `;
+    modalBox.querySelector('#btn-story-letter-ok')!.addEventListener('click', onClose);
+  }
+
+  public renderLanternFestivalModal(modalBox: HTMLElement, onFinish: () => void): void {
+    this.cleanup();
+    modalBox.innerHTML = `
+      <div class="modal-header">
+        <h2>🏮 Lễ Hội Thả Đèn Mây — Ngày 24 Xuân</h2>
+      </div>
+      <div class="story-stage-wrap">
+        <canvas id="festival-stage-canvas" width="360" height="150"></canvas>
+        <div class="card-box" style="width:100%;font-size:14px;line-height:1.45;">
+          ${LANTERN_FESTIVAL_WISHES.map(
+            (w) => `<div style="margin:3px 0;"><b>${w.name}:</b> ${w.wish}</div>`
+          ).join('')}
+        </div>
+      </div>
+      <div style="margin-top:12px;text-align:right;">
+        <button id="btn-festival-release" class="pixel-btn primary">✨ Thả Đèn Lên Trời Đêm!</button>
+      </div>
+    `;
+
+    const canvas = modalBox.querySelector('#festival-stage-canvas') as HTMLCanvasElement;
+    const ctx = canvas.getContext('2d')!;
+    const lanterns = Array.from({ length: 18 }, (_, idx) => ({
+      x: 20 + ((idx * 19) % 320),
+      y: 25 + (idx * 23) % 115,
+      speed: 12 + (idx % 4) * 5,
+      phase: idx * 0.7,
+    }));
+
+    let t = 0;
+    const drawFestival = () => {
+      t += 0.025;
+      ctx.imageSmoothingEnabled = false;
+      // Starlit twilight sky
+      ctx.fillStyle = '#252142';
+      ctx.fillRect(0, 0, 360, 150);
+      ctx.fillStyle = '#3d3369';
+      ctx.fillRect(0, 72, 360, 44);
+      ctx.fillStyle = '#53447c';
+      ctx.fillRect(0, 110, 360, 40);
+
+      // Pixel stars
+      ctx.fillStyle = PALETTE.creamLight;
+      for (let i = 0; i < 20; i++) {
+        const sx = (i * 53 + 17) % 350;
+        const sy = (i * 29 + 9) % 80;
+        if (Math.sin(t * 3 + i) > -0.4) {
+          ctx.fillRect(sx, sy, 2, 2);
+        }
+      }
+
+      // Drifting glowing sky lanterns
+      for (const l of lanterns) {
+        const ly = ((l.y - t * l.speed) % 135 + 135) % 135;
+        const lx = l.x + Math.round(Math.sin(t * 2 + l.phase) * 5);
+        ctx.fillStyle = PALETTE.amberWarm;
+        ctx.fillRect(lx - 1, ly - 1, 8, 10);
+        ctx.fillStyle = PALETTE.coralRed;
+        ctx.fillRect(lx, ly, 6, 8);
+        ctx.fillStyle = PALETTE.amberGold;
+        ctx.fillRect(lx + 1, ly + 2, 4, 5);
+        ctx.fillStyle = PALETTE.whiteWarm;
+        ctx.fillRect(lx + 2, ly + 4, 2, 2);
+      }
+
+      // Silhouetted Teahouse deck railing & gathering villagers
+      ctx.fillStyle = PALETTE.woodDark;
+      ctx.fillRect(0, 128, 360, 22);
+      for (const gx of [95, 130, 175, 220, 260]) {
+        ctx.fillStyle = PALETTE.outlineDark;
+        ctx.fillRect(gx, 114, 7, 15);
+        ctx.fillRect(gx + 1, 108, 5, 6);
+      }
+
+      this.animRafId = requestAnimationFrame(drawFestival);
+    };
+    drawFestival();
+
+    modalBox.querySelector('#btn-festival-release')!.addEventListener('click', () => {
+      this.cleanup();
+      onFinish();
+    });
+  }
+
+  public renderSpringFinaleModal(
+    modalBox: HTMLElement,
+    stats: SpringFinaleStats,
+    onContinueFreeplay: () => void
+  ): void {
+    this.cleanup();
+    const npcIds = Object.keys(NPCS) as NpcId[];
+
+    modalBox.innerHTML = `
+      <div class="modal-header">
+        <h2>🌸 Tổng Kết Mùa Xuân — Trà Quán Trên Mây</h2>
+      </div>
+      <div class="card-box" style="margin-bottom:10px;background:#fff4d8;">
+        <strong>✨ Chúc mừng! Bạn đã khép lại trọn vẹn 28 ngày Mùa Xuân đầu tiên trên đảo!</strong>
+        <span style="font-size:14px;">Từ một quán trà phủ bụi, nơi đây đã trở thành mái nhà ấm áp giữa tầng mây.</span>
+      </div>
+      <div class="finale-stat-grid">
+        <div class="card-box"><div class="summary-row" style="border:none;"><span>🍵 Tách trà đã pha:</span><b>${stats.totalTeasBrewed}</b></div></div>
+        <div class="card-box"><div class="summary-row" style="border:none;"><span>😊 Khách đã phục vụ:</span><b>${stats.totalCustomersServed}</b></div></div>
+        <div class="card-box"><div class="summary-row" style="border:none;"><span>📖 Công thức trà:</span><b>${stats.unlockedRecipesCount}/5</b></div></div>
+        <div class="card-box"><div class="summary-row" style="border:none;"><span>✉️ Thư Bà Ngoại:</span><b>${stats.unlockedLettersCount}/${stats.totalLettersCount}</b></div></div>
+        <div class="card-box"><div class="summary-row" style="border:none;"><span>🪙 Tổng Xu Mây kiếm được:</span><b>${stats.totalMoneyEarned} Xu</b></div></div>
+        <div class="card-box"><div class="summary-row" style="border:none;"><span>🏮 Lễ Đèn Mây 24 Xuân:</span><b>${stats.lanternFestivalDone ? '✓ Đã tham dự' : 'Đang chờ'}</b></div></div>
+      </div>
+      <div class="finale-npc-row" style="margin-bottom:12px;">
+        ${npcIds
+          .map((id) => {
+            const def = NPCS[id];
+            const h = stats.npcHearts[id] ?? 0;
+            return `
+              <div class="card-box" style="align-items:center;text-align:center;">
+                <img src="${pixelArt.getPortraitUrl(id, h >= 4 ? 'happy' : 'normal')}" style="width:48px;height:48px;border:2px solid #2b1d14;image-rendering:pixelated;" alt="${def.name}" />
+                <strong>${def.name}</strong>
+                <span style="color:#b8433a;font-size:13px;">${'♥'.repeat(h)}${'♡'.repeat(10 - h)} (${h}/10)</span>
+              </div>
+            `;
+          })
+          .join('')}
+      </div>
+      <div class="card-box" style="margin-bottom:12px;">
+        <div style="font-size:14px;">💌 <i>"Mùa Xuân khép lại, nhưng hương trà trên mây vẫn còn mãi. Hãy tiếp tục trồng trà, pha chế, đón khách và trang trí đảo theo cách của riêng cháu nhé!"</i></div>
+      </div>
+      <div style="text-align:right;">
+        <button id="btn-finale-continue" class="pixel-btn primary">🌱 Tiếp Tục Chơi Tự Do (Vòng Xuân Mới)</button>
+      </div>
+    `;
+    modalBox.querySelector('#btn-finale-continue')!.addEventListener('click', onContinueFreeplay);
   }
 }

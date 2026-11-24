@@ -16,6 +16,7 @@ export class HUD {
   private dialHandEl = document.getElementById('dial-hand')!;
   private dialBgEl = document.getElementById('sun-moon-dial')!;
   private locationPillEl = document.getElementById('location-pill')!;
+  private questPillEl = document.getElementById('quest-pill')!;
   private promptPillEl = document.getElementById('prompt-pill')!;
   private debugOverlayEl = document.getElementById('debug-overlay')!;
   private hotbarSlotsEl = document.getElementById('hotbar-slots')!;
@@ -84,6 +85,17 @@ export class HUD {
   public setLocation(label: string): void {
     if (this.locationPillEl.textContent !== label) {
       this.locationPillEl.textContent = label;
+    }
+  }
+
+  public setQuestHint(text: string | null): void {
+    if (text) {
+      if (this.questPillEl.textContent !== text) {
+        this.questPillEl.textContent = text;
+      }
+      this.questPillEl.classList.remove('hidden');
+    } else {
+      this.questPillEl.classList.add('hidden');
     }
   }
 

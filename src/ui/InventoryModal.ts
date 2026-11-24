@@ -2,11 +2,12 @@ import { pixelArt } from '../art/pixelArtGenerator';
 import { ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import { getSteepLabel, getTempLabel, RECIPES } from '../data/recipes';
-import { InventorySlot, MemoryCutscene, NpcId } from '../data/types';
+import { GrandmaLetterDef, GRANDMA_LETTERS, SPRING_CALENDAR_EVENTS } from '../data/story';
+import { InventorySlot, MemoryCutscene, NpcId, StoryState } from '../data/types';
 import { RelationshipSystem } from '../systems/RelationshipSystem';
 import { TooltipCallbacks } from './HUD';
 
-export type InventoryModalTab = 'bag' | 'book' | 'relations';
+export type InventoryModalTab = 'bag' | 'book' | 'relations' | 'story';
 
 export class InventoryModal {
   private activeTab: InventoryModalTab = 'bag';
@@ -118,7 +119,12 @@ export class InventoryModal {
     onSwapSlots: (a: number, b: number) => void,
     onReplayMemory: (npcId: NpcId, mem: MemoryCutscene) => void,
     onClose: () => void,
-    onUiClick?: () => void
+    onUiClick?: () => void,
+    storyInfo?: {
+      story: StoryState;
+      currentDay: number;
+      onReadLetter: (letter: GrandmaLetterDef) => void;
+    }
   ): void {
     modalBox.innerHTML = '';
 
@@ -132,12 +138,13 @@ export class InventoryModal {
         onSwapSlots,
         onReplayMemory,
         onClose,
-        onUiClick
+        onUiClick,
+        storyInfo
       );
 
     const header = document.createElement('div');
     header.className = 'modal-header';
-    header.innerHTML = `<h2>🎒 Túi Đồ, Công Thức & Quan Hệ</h2>`;
+    header.innerHTML = `<h2>🎒 Túi Đồ, Công Thức, Quan Hệ & Thư Xuân</h2>`;
     const closeBtn = document.createElement('button');
     closeBtn.className = 'pixel-btn small';
     closeBtn.textContent = 'Đóng (Esc)';
@@ -161,10 +168,12 @@ export class InventoryModal {
       return btn;
     };
 
+    const letterCount = storyInfo ? storyInfo.story.unlockedLetters.length : 1;
     tabs.append(
       makeTabBtn('bag', '🎒 Túi Đồ (24 ô)'),
       makeTabBtn('book', `📖 Sổ Công Thức (${unlockedRecipes.size}/5)`),
-      makeTabBtn('relations', '💛 Quan Hệ (4 NPC)')
+      makeTabBtn('relations', '💛 Quan Hệ (4 NPC)'),
+      makeTabBtn('story', `📜 Thư & Lịch Xuân (${letterCount}/${GRANDMA_LETTERS.length})`)
     );
     modalBox.appendChild(tabs);
 
@@ -265,7 +274,7 @@ export class InventoryModal {
         list.appendChild(card);
       }
       modalBox.appendChild(list);
-    } else {
+    } else if (this.activeTab === 'relations') {
       const npcTitle = document.createElement('h3');
       npcTitle.style.margin = '0 0 8px';
       npcTitle.textContent = '💛 Quan Hệ & Ký Ức Bạn Bè Trên Đảo';
@@ -332,6 +341,83 @@ export class InventoryModal {
         npcList.appendChild(card);
       });
       modalBox.appendChild(npcList);
+    } else {
+      const currentDay = storyInfo?.currentDay ?? 1;
+      const unlockedSet = new Set(storyInfo?.story.unlockedLetters ?? ['letter_1_welcome']);
+
+      const letterHeading = document.createElement('h3');
+      letterHeading.style.margin = '0 0 8px';
+      letterHeading.textContent = `✉️ Hộp Thư Của Bà Ngoại (${unlockedSet.size}/${GRANDMA_LETTERS.length})`;
+      modalBox.appendChild(letterHeading);
+
+      const letterGrid = document.createElement('div');
+      letterGrid.className = 'recipe-list';
+      letterGrid.style.marginBottom = '14px';
+      for (const letter of GRANDMA_LETTERS) {
+        const unlocked = unlockedSet.has(letter.id);
+        const card = document.createElement('div');
+        card.className = 'card-box';
+        if (unlocked) {
+          card.innerHTML = `
+            <strong>✉️ ${letter.title}</strong>
+            <div style="font-size:13px;color:#6b3e26;">${letter.lines[1]}</div>
+          `;
+          const btn = document.createElement('button');
+          btn.className = 'pixel-btn small primary';
+          btn.textContent = '📖 Đọc lại lá thư';
+          btn.onclick = () => {
+            onUiClick?.();
+            storyInfo?.onReadLetter(letter);
+          };
+          card.appendChild(btn);
+        } else {
+          card.innerHTML = `
+            <strong style="color:#8f5a34;">🔒 Thư #${letter.order} — Chưa tìm thấy</strong>
+            <div style="font-size:13px;">Gợi ý: ${letter.unlockHint}</div>
+          `;
+        }
+        letterGrid.appendChild(card);
+      }
+      modalBox.appendChild(letterGrid);
+
+      const calHeading = document.createElement('h3');
+      calHeading.style.margin = '0 0 6px';
+      calHeading.textContent = `📅 Lịch 28 Ngày Mùa Xuân (Hôm nay: Ngày ${currentDay})`;
+      modalBox.appendChild(calHeading);
+
+      const calGrid = document.createElement('div');
+      calGrid.className = 'spring-calendar-grid';
+      const eventMap = new Map(SPRING_CALENDAR_EVENTS.map((ev) => [ev.day, ev]));
+      for (let d = 1; d <= 28; d++) {
+        const ev = eventMap.get(d);
+        const cell = document.createElement('div');
+        const classes = ['calendar-day-cell'];
+        if (d < currentDay) classes.push('past');
+        if (d === currentDay) classes.push('today');
+        if (ev?.kind === 'festival') classes.push('festival');
+        if (ev?.kind === 'finale') classes.push('finale');
+        cell.className = classes.join(' ');
+        if (ev) cell.title = `${ev.title} — ${ev.description}`;
+
+        cell.innerHTML = `
+          <div><b>${d}</b>${d === currentDay ? ' ★' : ''}</div>
+          <div class="calendar-tag">${ev ? ev.shortTag : '·'}</div>
+        `;
+        calGrid.appendChild(cell);
+      }
+      modalBox.appendChild(calGrid);
+
+      const todayEv = eventMap.get(currentDay);
+      const nextEv = SPRING_CALENDAR_EVENTS.find((ev) => ev.day >= currentDay);
+      const evNote = document.createElement('div');
+      evNote.className = 'card-box';
+      evNote.style.marginTop = '10px';
+      evNote.innerHTML = todayEv
+        ? `<strong>🌟 Sự kiện hôm nay — ${todayEv.title}</strong><span style="font-size:13px;">${todayEv.description}</span>`
+        : nextEv
+          ? `<strong>📌 Sắp tới: ${nextEv.title}</strong><span style="font-size:13px;">${nextEv.description}</span>`
+          : '';
+      if (evNote.innerHTML) modalBox.appendChild(evNote);
     }
   }
 }

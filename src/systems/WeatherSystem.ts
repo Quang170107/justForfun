@@ -62,6 +62,7 @@ export class WeatherSystem {
   private butterflies: { mesh: THREE.Mesh; cx: number; cz: number; phase: number }[] = [];
   private birds: SkyBird[] = [];
   private bursts: BurstParticle[] = [];
+  private skyLanterns: { sprite: THREE.Sprite; vy: number; baseX: number; phase: number }[] = [];
 
   constructor(initialWeather: WeatherType, initialTomorrowWeather?: WeatherType) {
     this.currentWeather = initialWeather;
@@ -343,7 +344,38 @@ export class WeatherSystem {
     for (const b of this.birds) {
       if (b.sprite.visible) count += 1;
     }
+    count += this.skyLanterns.length;
     return count;
+  }
+
+  public spawnSkyLanterns(count = 16): void {
+    const tex = pixelArt.getTexture('prop_sky_lantern');
+    for (let i = 0; i < count; i++) {
+      if (this.skyLanterns.length >= 20) {
+        const oldest = this.skyLanterns.shift()!;
+        this.group.remove(oldest.sprite);
+        oldest.sprite.material.dispose();
+      }
+      const mat = new THREE.SpriteMaterial({
+        map: tex,
+        transparent: true,
+        opacity: 0.95,
+        depthWrite: false,
+      });
+      const sp = new THREE.Sprite(mat);
+      const bx = 2.0 + Math.random() * 7.5;
+      const bz = -1.0 + Math.random() * 6.0;
+      const by = 0.6 + Math.random() * 2.2;
+      sp.position.set(bx, by, bz);
+      sp.scale.set(0.55, 0.72, 1);
+      this.group.add(sp);
+      this.skyLanterns.push({
+        sprite: sp,
+        vy: 0.55 + Math.random() * 0.45,
+        baseX: bx,
+        phase: Math.random() * 6.28,
+      });
+    }
   }
 
   public update(dt: number, elapsed: number, nightFactor: number): void {
@@ -459,6 +491,20 @@ export class WeatherSystem {
       b.mesh.position.y = Math.max(0.05, b.mesh.position.y + b.vy * dt);
       b.mesh.position.z += b.vz * dt;
       b.mesh.material.opacity = 1 - b.life / b.maxLife;
+    }
+
+    // Đèn trời thả bay lên vào Lễ Thả Đèn Mây Ngày 24
+    for (let i = this.skyLanterns.length - 1; i >= 0; i--) {
+      const l = this.skyLanterns[i];
+      l.sprite.position.y += l.vy * dt;
+      l.sprite.position.x = l.baseX + Math.sin(elapsed * 1.1 + l.phase) * 0.45;
+      if (l.sprite.position.y > 14) {
+        this.group.remove(l.sprite);
+        l.sprite.material.dispose();
+        this.skyLanterns.splice(i, 1);
+      } else if (l.sprite.position.y > 10.5) {
+        l.sprite.material.opacity = Math.max(0, 1 - (l.sprite.position.y - 10.5) / 3.5);
+      }
     }
   }
 }

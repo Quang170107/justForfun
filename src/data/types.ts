@@ -205,6 +205,19 @@ export interface DailySummaryStats {
   nextWeather: WeatherType;
 }
 
+export interface StoryState {
+  introCompleted: boolean;
+  teahouseCleaned: boolean;
+  cleanedSpots: string[];
+  unlockedLetters: string[];
+  seenEvents: string[];
+  lanternFestivalDone: boolean;
+  springCompleted: boolean;
+  totalTeasBrewed: number;
+  totalCustomersServed: number;
+  totalMoneyEarned: number;
+}
+
 export interface SaveData {
   saveVersion: number;
   version?: number;
@@ -225,4 +238,5 @@ export interface SaveData {
   shippingBin: InventorySlot[];
   placedDecors: PlacedDecorState[];
   introRead: boolean;
+  story?: StoryState;
 }

@@ -1054,3 +1054,90 @@ body {
   line-height: 1.5;
   letter-spacing: 0.6px;
 }
+
+/* Phase 13 — Story cutscenes, letters & 28-day Spring calendar */
+#quest-pill {
+  background: #fff3c4;
+  color: var(--outline);
+  font-size: 14px;
+}
+
+.story-stage-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+#intro-stage-canvas,
+#festival-stage-canvas {
+  width: 100%;
+  max-width: 580px;
+  height: auto;
+  border: 3px solid var(--outline);
+  background: #313d5a;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+.spring-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.calendar-day-cell {
+  background: var(--cream-light);
+  border: 2px solid var(--wood-dark);
+  padding: 4px 3px;
+  min-height: 46px;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  text-align: center;
+}
+
+.calendar-day-cell.past {
+  opacity: 0.72;
+  background: var(--cream-dark);
+}
+
+.calendar-day-cell.today {
+  border-color: var(--outline);
+  background: #fff4b8;
+  box-shadow: inset 0 0 0 2px #7cc142;
+  font-weight: 700;
+}
+
+.calendar-day-cell.festival {
+  background: #ffd9cc;
+  border-color: #b8433a;
+}
+
+.calendar-day-cell.finale {
+  background: #f5dcf0;
+  border-color: #6b3e26;
+}
+
+.calendar-tag {
+  font-size: 10px;
+  line-height: 1.1;
+  color: #6b3e26;
+  font-weight: 700;
+}
+
+.finale-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.finale-npc-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}

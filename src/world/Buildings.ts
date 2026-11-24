@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { pixelArt } from '../art/pixelArtGenerator';
+import { CLEANUP_SPOTS } from '../data/story';
 import { PlacedDecorState, UpgradesState } from '../data/types';
 import { DryingRackVisualState } from '../systems/ProcessingSystem';
 import { ColliderBox, Island } from './Island';
@@ -14,12 +15,17 @@ export interface InteractiveZone {
     | 'roast_wok'
     | 'brew_counter'
     | 'tea_table'
-    | 'open_sign';
+    | 'open_sign'
+    | 'cleanup_spot'
+    | 'letter_pickup'
+    | 'festival_stand';
   label: string;
   x: number;
   z: number;
   radius: number;
   tableIndex?: number;
+  spotId?: string;
+  letterId?: string;
 }
 
 export class Buildings {
@@ -57,6 +63,9 @@ export class Buildings {
   private decorGroup = new THREE.Group();
   private decorNightGlows: THREE.Sprite[] = [];
   private decorSwayProps: { obj: THREE.Object3D; baseZ: number; phase: number }[] = [];
+  private storyGroup = new THREE.Group();
+  private storyZones: InteractiveZone[] = [];
+  private storyGlows: THREE.Sprite[] = [];
   private smokeParticles: { sprite: THREE.Sprite; originY: number; phase: number }[] = [];
 
   private homeRoofOpacity = 1;
@@ -77,6 +86,7 @@ export class Buildings {
     this.group.add(this.table4Group);
     this.group.add(this.table5Group);
     this.group.add(this.decorGroup);
+    this.group.add(this.storyGroup);
     this.applyUpgrades(upgrades);
   }
 
@@ -917,10 +927,119 @@ export class Buildings {
     return '🏝️ Đảo Trà Trên Mây';
   }
 
+  public syncStoryProps(
+    cleanedSpots: string[],
+    showLighthouseLetter: boolean,
+    isFestivalDay: boolean
+  ): void {
+    while (this.storyGroup.children.length > 0) {
+      this.storyGroup.remove(this.storyGroup.children[0]);
+    }
+    this.storyZones = [];
+    this.storyGlows = [];
+
+    const cleanedSet = new Set(cleanedSpots);
+    for (const spot of CLEANUP_SPOTS) {
+      if (cleanedSet.has(spot.id)) continue;
+      const flatGeo = new THREE.PlaneGeometry(0.9, 0.9);
+      flatGeo.rotateX(-Math.PI / 2);
+      const flatMat = new THREE.MeshBasicMaterial({
+        map: pixelArt.getTexture(spot.kind === 'leaves' ? 'prop_dust_leaves' : 'prop_dust_spot'),
+        transparent: true,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(flatGeo, flatMat);
+      mesh.position.set(spot.x, 0.036, spot.z);
+      this.storyGroup.add(mesh);
+
+      this.storyZones.push({
+        id: 'cleanup_spot',
+        label: spot.label,
+        x: spot.x,
+        z: spot.z,
+        radius: 1.3,
+        spotId: spot.id,
+      });
+    }
+
+    if (showLighthouseLetter) {
+      const lx = 8.4;
+      const lz = 4.0;
+      const letterObj = pixelArt.createYBillboard({
+        textureKey: 'prop_letter_pickup',
+        widthPx: 16,
+        heightPx: 16,
+        shadowScale: 0.7,
+        shadowYOffset: 0.036,
+        baseYOffset: 0.05,
+      });
+      letterObj.group.position.set(lx, 0, lz);
+      this.storyGroup.add(letterObj.group);
+
+      const spark = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: pixelArt.getTexture('sparkle_pixel'),
+          transparent: true,
+          opacity: 0.85,
+          depthWrite: false,
+        })
+      );
+      spark.position.set(lx, 0.85, lz);
+      spark.scale.set(0.45, 0.45, 1);
+      this.storyGroup.add(spark);
+
+      this.storyZones.push({
+        id: 'letter_pickup',
+        label: 'Nhặt Lá Thư Cũ Của Bà Ngoại',
+        x: lx,
+        z: lz,
+        radius: 1.45,
+        letterId: 'letter_4_lanterns',
+      });
+    }
+
+    if (isFestivalDay) {
+      const fx = 5.5;
+      const fz = 3.55;
+      const stand = pixelArt.createYBillboard({
+        textureKey: 'prop_festival_stand',
+        widthPx: 24,
+        heightPx: 28,
+        shadowScale: 1.4,
+        shadowYOffset: 0.036,
+        baseYOffset: 0.03,
+      });
+      stand.group.position.set(fx, 0, fz);
+      this.storyGroup.add(stand.group);
+
+      const glow = new THREE.Sprite(
+        new THREE.SpriteMaterial({
+          map: pixelArt.getTexture('glow_pixel'),
+          transparent: true,
+          opacity: 0.55,
+          blending: THREE.AdditiveBlending,
+          depthWrite: false,
+        })
+      );
+      glow.position.set(fx, 1.05, fz + 0.05);
+      glow.scale.set(2.4, 2.4, 1);
+      this.storyGroup.add(glow);
+      this.storyGlows.push(glow);
+
+      this.storyZones.push({
+        id: 'festival_stand',
+        label: '🏮 Tham Gia Lễ Thả Đèn Mây (Ngày 24)',
+        x: fx,
+        z: fz,
+        radius: 1.75,
+      });
+    }
+  }
+
   public getNearestZone(px: number, pz: number, tableCount: number): InteractiveZone | null {
     let best: InteractiveZone | null = null;
     let bestDist = Infinity;
-    for (const z of this.zones) {
+    for (const z of [...this.storyZones, ...this.zones]) {
       if (typeof z.tableIndex === 'number' && z.tableIndex >= tableCount) continue;
       const d = Math.hypot(px - z.x, pz - z.z);
       if (d <= z.radius && d < bestDist) {
@@ -968,6 +1087,12 @@ export class Buildings {
       const mat = sp.material as THREE.SpriteMaterial;
       const flicker = 0.86 + Math.sin(elapsed * 4.8 + i * 1.4) * 0.14;
       mat.opacity = nightFactor * 0.95 * flicker;
+    }
+
+    for (let i = 0; i < this.storyGlows.length; i++) {
+      const sp = this.storyGlows[i];
+      const mat = sp.material as THREE.SpriteMaterial;
+      mat.opacity = (0.35 + nightFactor * 0.6) * (0.9 + Math.sin(elapsed * 4 + i) * 0.1);
     }
 
     for (const sway of this.decorSwayProps) {
