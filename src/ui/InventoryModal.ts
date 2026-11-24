@@ -1,4 +1,5 @@
 import { pixelArt } from '../art/pixelArtGenerator';
+import { storybookArt } from '../art/storybookArt';
 import { ITEMS } from '../data/crops';
 import { NPCS } from '../data/npcs';
 import { getSteepLabel, getTempLabel, RECIPES } from '../data/recipes';
@@ -294,7 +295,7 @@ export class InventoryModal {
         const top = document.createElement('div');
         top.className = 'card-top';
         top.innerHTML = `
-          <img src="${pixelArt.getPortraitUrl(id, hearts >= 5 ? 'happy' : 'normal')}" style="width:64px;height:64px;border:3px solid #2b1d14;image-rendering:pixelated;" alt="${def.name}" />
+          <img src="${storybookArt.getPortraitUrl(id, hearts >= 5 ? 'happy' : 'normal')}" style="width:68px;height:68px;border:3px solid #2b1d14;border-radius:6px;" alt="${def.name}" />
           <div style="flex:1;">
             <strong>${def.name}</strong>
             <div style="font-size:12px;color:#6b3e26;">${def.role}</div>

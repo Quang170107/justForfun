@@ -1,5 +1,3 @@
-import * as THREE from 'three';
-import { pixelArt } from '../art/pixelArtGenerator';
 import { NpcDef, NpcScheduleKey, WeatherType } from '../data/types';
 import { Island } from '../world/Island';
 import { BillboardSprite } from './BillboardSprite';
@@ -12,7 +10,6 @@ export class NPCEntity extends BillboardSprite {
   private stuckTimer = 0;
   private currentScheduleKey: NpcScheduleKey = 'morning';
   private isTransitioningSchedule = false;
-  private nightLanternGlow: THREE.Sprite | null = null;
   public hiddenDuringCafe = false;
 
   constructor(def: NpcDef) {
@@ -21,28 +18,13 @@ export class NPCEntity extends BillboardSprite {
     this.x = def.homePos.x;
     this.z = def.homePos.z;
     this.syncSnappedPosition();
-
-    // Đèn bão trên tay Ông Đăng & ánh sáng nhỏ của Mây phát sáng ban đêm
-    if (def.id === 'ong_dang' || def.id === 'may') {
-      const mat = new THREE.SpriteMaterial({
-        map: pixelArt.getTexture('glow_pixel'),
-        transparent: true,
-        opacity: 0,
-        blending: THREE.AdditiveBlending,
-        depthWrite: false,
-      });
-      this.nightLanternGlow = new THREE.Sprite(mat);
-      this.nightLanternGlow.position.set(0.35, 1.0, 0.1);
-      this.nightLanternGlow.scale.set(1.5, 1.5, 1);
-      this.group.add(this.nightLanternGlow);
-    }
   }
 
   public static resolveScheduleKey(timeMinutes: number, weather: WeatherType): NpcScheduleKey {
     if (weather === 'rainy') return 'rainy';
-    if (timeMinutes < 720) return 'morning'; // 06:00 - 11:59
-    if (timeMinutes < 1080) return 'afternoon'; // 12:00 - 17:59
-    return 'evening'; // 18:00 - 24:00
+    if (timeMinutes < 720) return 'morning';
+    if (timeMinutes < 1080) return 'afternoon';
+    return 'evening';
   }
 
   public getCurrentScheduleLabel(): string {
@@ -61,7 +43,7 @@ export class NPCEntity extends BillboardSprite {
       this.x = pts[0].x;
       this.z = pts[0].z;
       this.direction = 'down';
-      const floatY = this.def.id === 'may' ? 0.12 : 0;
+      const floatY = this.def.id === 'may' ? 0.14 : 0;
       this.syncSnappedPosition(floatY);
     }
   }
@@ -87,12 +69,8 @@ export class NPCEntity extends BillboardSprite {
     this.group.visible = !this.hiddenDuringCafe;
     if (this.hiddenDuringCafe) return;
 
-    if (this.nightLanternGlow) {
-      const mat = this.nightLanternGlow.material as THREE.SpriteMaterial;
-      mat.opacity = this.def.id === 'may' ? 0.25 + nightFactor * 0.5 : nightFactor * 0.75;
-    }
-
-    const floatY = this.def.id === 'may' ? Math.sin(elapsed * 2.8) * 0.12 + 0.12 : 0;
+    this.model.setLanternGlow(nightFactor);
+    const floatY = this.def.id === 'may' ? Math.sin(elapsed * 2.8) * 0.12 + 0.14 : 0;
 
     if (frozen) {
       this.setFrame('down', 4);

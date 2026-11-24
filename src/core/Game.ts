@@ -1,6 +1,11 @@
 import * as THREE from 'three';
+import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { PALETTE } from '../art/palette';
-import { CAMERA_ELEVATION_RAD, PIXELS_PER_UNIT, pixelArt } from '../art/pixelArtGenerator';
+import { CAMERA_ELEVATION_RAD, pixelArt } from '../art/pixelArtGenerator';
+import { toonMaterials } from '../art/toonMaterials';
 import { DRYING_OUTPUT_MAP, getItemSellValue, ITEMS } from '../data/crops';
 import { GUEST_PROFILES } from '../data/customers';
 import {
@@ -14,8 +19,10 @@ import { NPCS } from '../data/npcs';
 import {
   CLEANUP_SPOTS,
   createDefaultStoryState,
+  DAY14_TEA_GATHERING_DIALOGUE,
   DAY1_BE_SUONG_DIALOGUE,
   DAY3_ONG_DANG_DIALOGUE,
+  getLandmarkLore,
   GRANDMA_LETTERS,
   GrandmaLetterDef,
 } from '../data/story';
@@ -60,14 +67,14 @@ const BASE_H = 270;
 
 export class Game {
   private renderer: THREE.WebGLRenderer;
-  private renderTarget: THREE.WebGLRenderTarget;
-  private postScene: THREE.Scene;
-  private postCamera: THREE.OrthographicCamera;
+  private composer: EffectComposer;
+  private bloomPass: UnrealBloomPass;
 
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
-  private ambientLight: THREE.AmbientLight;
+  private hemiLight: THREE.HemisphereLight;
   private dirLight: THREE.DirectionalLight;
+  private readonly camHalfH = 7.2;
 
   private saveSystem = new SaveSystem();
   private input = new InputSystem();
@@ -110,7 +117,6 @@ export class Game {
   private readonly camRightVec = new THREE.Vector3();
   private readonly camUpVec = new THREE.Vector3();
   private readonly billboardTint = new THREE.Color('#ffffff');
-  private readonly skyLightColor = new THREE.Color(PALETTE.skyLight);
   private readonly projVec = new THREE.Vector3();
   private readonly sceneFog = new THREE.Fog('#d9e6fa', 42, 160);
   private cameraShakeTime = 0;
@@ -126,7 +132,6 @@ export class Game {
   private targetTileX = -2;
   private targetTileZ = -1;
 
-  private currentScale = 2;
   private lastTime = performance.now();
   private elapsed = 0;
   private isSleepingTransition = false;
@@ -145,6 +150,7 @@ export class Game {
 
   constructor(canvas: HTMLCanvasElement) {
     pixelArt.init();
+    toonMaterials.init();
 
     const loaded = this.saveSystem.load() ?? createDefaultSave();
     this.money = loaded.money;
@@ -167,46 +173,60 @@ export class Game {
     this.time.season = loaded.season;
     this.time.timeMinutes = loaded.timeMinutes;
 
-    // 1. Setup Pixel-Perfect WebGL Renderer & Low-Res RenderTarget (480x270)
+    // 1. Setup Full-Res Stylized 3D WebGL Renderer, PCF Soft Shadows & Bloom
+    const initW = Math.max(320, window.innerWidth);
+    const initH = Math.max(240, window.innerHeight);
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: false,
+      antialias: true,
       powerPreference: 'high-performance',
     });
-    this.renderer.setPixelRatio(1);
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.setSize(initW, initH, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.05;
 
-    this.renderTarget = new THREE.WebGLRenderTarget(BASE_W, BASE_H, {
-      minFilter: THREE.NearestFilter,
-      magFilter: THREE.NearestFilter,
-      generateMipmaps: false,
-      depthBuffer: true,
-    });
-    this.renderTarget.texture.colorSpace = THREE.SRGBColorSpace;
-
-    this.postScene = new THREE.Scene();
-    this.postCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
-    const postQuad = new THREE.Mesh(
-      new THREE.PlaneGeometry(2, 2),
-      new THREE.MeshBasicMaterial({ map: this.renderTarget.texture })
-    );
-    this.postScene.add(postQuad);
-
-    // 2. Setup 2.5D Scene & Orthographic Camera (1 tile = 16x16 px at base res)
+    // 2. Setup Stylized 3D Scene & Responsive Orthographic Camera
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(PALETTE.skyLight);
     this.scene.fog = this.sceneFog;
 
-    const halfW = BASE_W / PIXELS_PER_UNIT / 2; // 15
-    const halfH = BASE_H / PIXELS_PER_UNIT / 2; // 8.4375
-    this.camera = new THREE.OrthographicCamera(-halfW, halfW, halfH, -halfH, 0.1, 140);
+    const aspect = initW / initH;
+    this.camera = new THREE.OrthographicCamera(
+      -this.camHalfH * aspect,
+      this.camHalfH * aspect,
+      this.camHalfH,
+      -this.camHalfH,
+      0.1,
+      240
+    );
 
-    this.ambientLight = new THREE.AmbientLight('#fff8ec', 0.92);
-    this.scene.add(this.ambientLight);
+    this.hemiLight = new THREE.HemisphereLight('#b7c9f0', '#8f6d46', 0.95);
+    this.scene.add(this.hemiLight);
 
-    this.dirLight = new THREE.DirectionalLight('#fff2d6', 0.85);
-    this.dirLight.position.set(-14, 24, 10);
+    this.dirLight = new THREE.DirectionalLight('#fff2d6', 1.25);
+    this.dirLight.position.set(-14, 24, 14);
+    this.dirLight.castShadow = true;
+    this.dirLight.shadow.mapSize.set(2048, 2048);
+    this.dirLight.shadow.camera.left = -19;
+    this.dirLight.shadow.camera.right = 19;
+    this.dirLight.shadow.camera.top = 16;
+    this.dirLight.shadow.camera.bottom = -16;
+    this.dirLight.shadow.camera.near = 1;
+    this.dirLight.shadow.camera.far = 75;
+    this.dirLight.shadow.bias = -0.0005;
+    this.dirLight.shadow.normalBias = 0.03;
     this.scene.add(this.dirLight);
+    this.scene.add(this.dirLight.target);
+
+    this.composer = new EffectComposer(this.renderer);
+    this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.bloomPass = new UnrealBloomPass(new THREE.Vector2(initW, initH), 0.24, 0.55, 0.92);
+    this.composer.addPass(this.bloomPass);
+    this.composer.addPass(new OutputPass());
 
     // 3. World & Systems
     this.cloudSea = new CloudSea();
@@ -386,18 +406,28 @@ export class Game {
   }
 
   private handleResize = (): void => {
-    const scale = Math.max(1, Math.floor(Math.min(window.innerWidth / BASE_W, window.innerHeight / BASE_H)));
-    this.currentScale = scale;
+    const w = Math.max(320, window.innerWidth);
+    const h = Math.max(240, window.innerHeight);
+    const scale = Math.max(1, Math.floor(Math.min(w / BASE_W, h / BASE_H)));
     document.documentElement.style.setProperty('--ui-scale', String(scale));
-    const w = BASE_W * scale;
-    const h = BASE_H * scale;
+    const aspect = w / h;
+    this.camera.left = -this.camHalfH * aspect;
+    this.camera.right = this.camHalfH * aspect;
+    this.camera.top = this.camHalfH;
+    this.camera.bottom = -this.camHalfH;
+    this.camera.updateProjectionMatrix();
+
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.setSize(w, h, false);
+    this.composer.setSize(w, h);
+    this.bloomPass.setSize(w, h);
+
     const canvas = this.renderer.domElement;
-    canvas.style.width = `${w}px`;
-    canvas.style.height = `${h}px`;
+    canvas.style.width = '100%';
+    canvas.style.height = '100%';
     const wrapper = document.getElementById('viewport-wrapper')!;
-    wrapper.style.width = `${w}px`;
-    wrapper.style.height = `${h}px`;
+    wrapper.style.width = '100%';
+    wrapper.style.height = '100%';
   };
 
   public start(): void {
@@ -495,10 +525,15 @@ export class Game {
     }
 
     const lighting = this.time.getLightingState(this.weather.currentWeather);
-    this.ambientLight.color.copy(lighting.tintColor);
-    this.ambientLight.intensity = lighting.ambientIntensity;
+    this.hemiLight.color.copy(lighting.hemiSkyColor);
+    this.hemiLight.groundColor.copy(lighting.hemiGroundColor);
+    this.hemiLight.intensity = lighting.ambientIntensity;
+    this.dirLight.color.copy(lighting.tintColor);
     this.dirLight.intensity = lighting.sunIntensity;
-    (this.scene.background as THREE.Color).copy(lighting.tintColor).lerp(this.skyLightColor, 0.35);
+    this.dirLight.position.copy(lighting.sunDirection).multiplyScalar(28);
+    this.dirLight.target.position.set(0, 0, 0);
+    this.bloomPass.strength = lighting.bloomStrength;
+    (this.scene.background as THREE.Color).copy(lighting.skyHorizonColor);
 
     this.audio.setBgmMood(
       this.weather.currentWeather === 'rainy'
@@ -524,7 +559,15 @@ export class Game {
     this.cameraShakeTime = Math.max(0, this.cameraShakeTime - dt);
 
     const fogStrength = WEATHER_CONFIG[this.weather.currentWeather].cloudRise;
-    this.cloudSea.update(this.elapsed, dt, fogStrength, lighting.nightFactor);
+    this.cloudSea.update(
+      this.elapsed,
+      dt,
+      fogStrength,
+      lighting.nightFactor,
+      lighting.skyTopColor,
+      lighting.skyHorizonColor,
+      lighting.sunDirection
+    );
     this.island.update(this.elapsed, lighting.nightFactor);
     this.tiles.updateWindAndRain(this.elapsed, this.weather.currentWeather === 'rainy');
     this.buildings.update(this.elapsed, lighting.nightFactor, this.player.x, this.player.z);
@@ -1302,6 +1345,31 @@ export class Game {
         this.handleCleanupSpot(zone.spotId, zone.x, zone.z);
         return;
       }
+      if (zone.id === 'tea_shrine') {
+        const firstVisit = !this.story.unlockedLetters.includes('letter_6_shrine');
+        this.weather.spawnSparkleBurst(10.3, 0.9, 0.35, 14);
+        this.audio.playWindChime();
+        if (firstVisit) {
+          this.unlockLetter('letter_6_shrine');
+          this.persistGame(false);
+          this.openLetterModalById('letter_6_shrine', '⛩️ Cất vào Sổ Thư!');
+        } else {
+          const lore = getLandmarkLore('tea_shrine', this.time.timeMinutes, this.weather.currentWeather);
+          this.ui.dialogue.open([{ speaker: lore.speaker, text: lore.text }]);
+        }
+        return;
+      }
+      if (zone.id === 'cloud_pond' || zone.id === 'overlook_bench') {
+        this.audio.playChime();
+        if (zone.id === 'cloud_pond') {
+          this.weather.spawnBurst(-8.2, 0.3, 6.35, PALETTE.waterLight, 8);
+        } else {
+          this.weather.spawnSparkleBurst(-4.0, 0.9, 6.45, 8);
+        }
+        const lore = getLandmarkLore(zone.id, this.time.timeMinutes, this.weather.currentWeather);
+        this.ui.dialogue.open([{ speaker: lore.speaker, text: lore.text }]);
+        return;
+      }
       if (zone.id === 'letter_pickup' && zone.letterId) {
         this.unlockLetter(zone.letterId);
         this.weather.spawnSparkleBurst(zone.x, 0.7, zone.z, 12);
@@ -1714,6 +1782,18 @@ export class Game {
       );
     }
 
+    if (this.time.day === 14 && !seen.has('day14_moon_tea_party')) {
+      markSeen('day14_moon_tea_party');
+      this.addItemOrOverflowToBin('jasmine_fresh', 2, 2);
+      (Object.keys(NPCS) as NpcId[]).forEach((id) => {
+        this.relations.addPoints(id, 30);
+      });
+      this.audio.playWindChime();
+      this.ui.hud.showToast('🌙 Hội Trà Trăng Non Ngày 14! Nhận +2 Hoa Nhài ★★ & +30 điểm thân thiết!');
+      this.ui.dialogue.open(DAY14_TEA_GATHERING_DIALOGUE);
+      return;
+    }
+
     if (this.time.day === 18 && !seen.has('day18_honey_market')) {
       markSeen('day18_honey_market');
       this.addItemOrOverflowToBin('honey', 2, 2);
@@ -1726,6 +1806,15 @@ export class Game {
       this.unlockLetter('letter_4_lanterns');
       this.syncWorldStoryProps();
       this.ui.hud.showToast('✉️ Ông Đăng nhặt gửi lại bạn Lá Thư #4 trong Hộp Thư!');
+    }
+
+    const hasFiveHearts = (Object.keys(NPCS) as NpcId[]).some((id) => this.relations.getHearts(id) >= 5);
+    if (
+      (this.time.day >= 21 || hasFiveHearts) &&
+      !this.story.unlockedLetters.includes('letter_7_seasons')
+    ) {
+      this.unlockLetter('letter_7_seasons');
+      this.ui.hud.showToast('💌 Có thêm Lá Thư #7 của Bà Ngoại trong Hộp Thư (Tab → Thư & Lịch Xuân)!');
     }
 
     if (this.time.day === 24 && !this.story.lanternFestivalDone && !seen.has('day24_festival_invite')) {
@@ -2290,39 +2379,19 @@ export class Game {
       shakeZ = Math.cos(this.elapsed * 82) * mag * 0.7;
     }
 
-    this.camTargetVec.set(this.camFollowX + shakeX, 0.4, this.camFollowZ + shakeZ);
+    this.camTargetVec.set(this.camFollowX + shakeX, 0.45, this.camFollowZ + shakeZ);
     this.camera.position.set(
       this.camFollowX + shakeX + Math.sin(yaw) * dist,
-      0.4 + height,
+      0.45 + height,
       this.camFollowZ + shakeZ + Math.cos(yaw) * dist
     );
     this.camera.lookAt(this.camTargetVec);
     this.camera.updateMatrixWorld();
-
-    // Screen-space pixel snapping: làm tròn theo lưới 1/16 đơn vị trên cả trục X & Y màn hình
     this.camRightVec.setFromMatrixColumn(this.camera.matrixWorld, 0).normalize();
     this.camUpVec.setFromMatrixColumn(this.camera.matrixWorld, 1).normalize();
-
-    const projX = this.camTargetVec.dot(this.camRightVec);
-    const projY = this.camTargetVec.dot(this.camUpVec);
-    const snapX = Math.round(projX * PIXELS_PER_UNIT) / PIXELS_PER_UNIT;
-    const snapY = Math.round(projY * PIXELS_PER_UNIT) / PIXELS_PER_UNIT;
-    const dx = snapX - projX;
-    const dy = snapY - projY;
-
-    this.camera.position.addScaledVector(this.camRightVec, dx).addScaledVector(this.camUpVec, dy);
-    this.camTargetVec.addScaledVector(this.camRightVec, dx).addScaledVector(this.camUpVec, dy);
-    this.camera.lookAt(this.camTargetVec);
   }
 
   private render(): void {
-    // 1. Render 3D scene vào RenderTarget 480x270 NearestFilter
-    this.renderer.setRenderTarget(this.renderTarget);
-    this.renderer.render(this.scene, this.camera);
-
-    // 2. Phóng đại theo bội số nguyên lên màn hình bằng NearestFilter
-    this.renderer.setRenderTarget(null);
-    this.renderer.setViewport(0, 0, BASE_W * this.currentScale, BASE_H * this.currentScale);
-    this.renderer.render(this.postScene, this.postCamera);
+    this.composer.render();
   }
 }

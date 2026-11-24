@@ -1,4 +1,4 @@
-import { NpcId, StoryState } from './types';
+import { NpcId, StoryState, WeatherType } from './types';
 
 export interface CleanupSpotDef {
   id: string;
@@ -102,6 +102,32 @@ export const GRANDMA_LETTERS: GrandmaLetterDef[] = [
       'Thương cháu thật nhiều! — Bà ngoại 🌸🍵',
     ],
   },
+  {
+    id: 'letter_6_shrine',
+    order: 6,
+    title: 'Lá Thư #6 — Truyền Thuyết Miếu Trà Cổ',
+    unlockHint: 'Ghé viếng Miếu Trà Cổ cổng son phía Đông đảo lần đầu.',
+    lines: [
+      'Cháu thương,',
+      'Nếu cháu tìm thấy lá thư nhỏ này kẹp dưới mái Miếu Trà Cổ, hẳn cháu đã dạo bước tới rìa Đông yên tĩnh nhất của hòn đảo rồi.',
+      'Người xưa kể rằng thuở hòn đảo mới tách khỏi dãy núi, chính cây trà tổ mọc cạnh ngôi miếu này đã giữ cho làn mây quanh đảo luôn hiền hòa, chẳng bao giờ bị gió bão xé tan.',
+      'Mỗi khi thấy lòng bận rộn, hãy thắp nén hương trà nơi đây và ngắm Hồ Sương Mây phía Tây Nam nhé — bà luôn dõi theo từ chân trời mây.',
+      '— Bà ngoại ⛩️🌿',
+    ],
+  },
+  {
+    id: 'letter_7_seasons',
+    order: 7,
+    title: 'Lá Thư #7 — Lời Hẹn Bốn Mùa Trên Mây',
+    unlockHint: 'Gắn bó trên đảo tới Ngày 21 Mùa Xuân hoặc có cư dân đạt 5♥.',
+    lines: [
+      'Chủ quán Trà Trên Mây yêu dấu,',
+      'Nghe Bé Sương và bác Cò Lữ ríu rít kể rằng quán trà chiều nào cũng rộn tiếng cười, lòng bà ấm như vừa nhấp một ngụm Trà Gừng mới ủ.',
+      'Mùa Xuân sắp đi qua rặng anh đào, nhưng hương trà ngon nhất không nằm ở mùa nào — mà nằm ở giây phút cháu chậm rãi rót nước, lắng nghe tiếng chuông gió và đón một người bạn quen bước qua bến mây.',
+      'Chúc cháu mỗi ngày trên đảo đều dịu dàng như buổi sớm đầu tiên!',
+      '— Bà ngoại 💌☁️',
+    ],
+  },
 ];
 
 export const SPRING_CALENDAR_EVENTS: SpringCalendarEvent[] = [
@@ -146,6 +172,14 @@ export const SPRING_CALENDAR_EVENTS: SpringCalendarEvent[] = [
     description: 'Cò Lữ mang tin bạn bay từ phương xa và nhặt được manh mối Lá Thư #4 gần Hải Đăng.',
   },
   {
+    day: 14,
+    id: 'day14_moon_tea_party',
+    title: 'Ngày 14: Hội Trà Trăng Non Giữa Xuân',
+    shortTag: 'Trà Trăng',
+    kind: 'story',
+    description: 'Cả 4 cư dân tụ họp thưởng trà sớm, tặng Hoa Nhài ★★ & tăng thân thiết.',
+  },
+  {
     day: 18,
     id: 'day18_honey_market',
     title: 'Ngày 18: Phiên Chợ Mật Ong Tầng Mây',
@@ -174,15 +208,101 @@ export const SPRING_CALENDAR_EVENTS: SpringCalendarEvent[] = [
 export const INTRO_SLIDES = [
   {
     caption:
-      'Chiếc Thuyền Mây nhẹ nhàng lướt qua biển mây hồng phấn sáng sớm, mang theo lá thư cũ và một hạt mầm hy vọng...',
-    buttonText: '⛵ Cập Bến Đảo Mây →',
+      'Chiếc Thuyền Mây nhẹ nhàng rẽ biển mây hồng phấn sáng sớm, mang theo lá thư cũ và một hạt mầm hy vọng...',
+    buttonText: '🌊 Tiến Lại Gần Đảo →',
   },
   {
     caption:
-      'Trước mắt bạn là Đảo Trà Trên Mây rợp bóng thông và anh đào, nơi Trà Quán của bà ngoại đang lặng lẽ chờ được thắp sáng trở lại.',
+      'Qua màn sương mai, Đảo Trà Trên Mây dần hiện ra rợp bóng anh đào, cây thông xanh và ngọn Hải Đăng đứng gác nơi chân trời.',
+    buttonText: '⛩️ Ngắm Toàn Cảnh Đảo →',
+  },
+  {
+    caption:
+      'Trên hiên gỗ ấm áp của Trà Quán, bà ngoại đã để lại chiếc ấm cũ, tách trà sớm và Lá Thư đầu tiên chờ bạn mở ra...',
     buttonText: '✉️ Mở Lá Thư Đầu Tiên →',
   },
 ];
+
+export const DAY14_TEA_GATHERING_DIALOGUE = [
+  {
+    speaker: 'Mây',
+    npcId: 'may' as NpcId,
+    expression: 'happy' as const,
+    text: 'Hôm nay là giữa Mùa Xuân rồi nè! Sớm nay bốn đứa mình cùng mang chút Hoa Nhài trắng tinh qua chúc mừng quán trà đó.',
+  },
+  {
+    speaker: 'Cò Lữ',
+    npcId: 'co_lu' as NpcId,
+    expression: 'happy' as const,
+    text: 'Gió tầng mây hôm nay mát dịu lắm! Chủ quán cứ giữ vững nhịp này nhé — hương trà giờ bay xa tận mấy đảo lân cận rồi.',
+  },
+  {
+    speaker: 'Bé Sương',
+    npcId: 'be_suong' as NpcId,
+    expression: 'happy' as const,
+    text: 'Đừng quên ghé thăm Miếu Trà Cổ phía Đông và Hồ Sương Mây phía Tây Nam lúc rảnh nha, góc nào trên đảo cũng có kỷ niệm của bà đó!',
+  },
+];
+
+export function getLandmarkLore(
+  landmark: 'tea_shrine' | 'cloud_pond' | 'overlook_bench',
+  timeMinutes: number,
+  weather: WeatherType
+): { speaker: string; text: string } {
+  const isEvening = timeMinutes >= 1080;
+  if (landmark === 'tea_shrine') {
+    if (weather === 'rainy') {
+      return {
+        speaker: '⛩️ Miếu Trà Cổ',
+        text: 'Mưa lất phất rơi trên mái ngói rêu phong. Ngọn đèn đá trước cổng son vẫn cháy ấm, mang theo mùi gỗ tuyết tùng và hương trà thoang thoảng.',
+      };
+    }
+    if (isEvening) {
+      return {
+        speaker: '⛩️ Miếu Trà Cổ',
+        text: 'Ánh hoàng hôn tím nhuộm đỏ cổng Torii. Tiếng gió lùa qua dải giấy shide nghe như lời chúc bình an gửi xuống từ bà ngoại.',
+      };
+    }
+    return {
+      speaker: '⛩️ Miếu Trà Cổ',
+      text: 'Ngôi miếu cổ lặng lẽ đứng bên rặng anh đào, nơi người dân đảo tin rằng linh khí trà xanh đã nâng đỡ hòn đảo giữa tầng mây suốt trăm năm.',
+    };
+  }
+  if (landmark === 'cloud_pond') {
+    if (weather === 'rainy') {
+      return {
+        speaker: '🌊 Hồ Sương Mây',
+        text: 'Từng giọt mưa vẽ vòng tròn đồng tâm trên mặt hồ xanh ngọc. Hai chú cá chép đỏ khẽ lượn dưới bóng lá sen thật bình yên.',
+      };
+    }
+    if (isEvening) {
+      return {
+        speaker: '🌊 Hồ Sương Mây',
+        text: 'Mặt hồ phản chiếu ánh trăng non và sắc cam hổ phách từ những chiếc đèn lồng, khiến mọi mệt mỏi cả ngày như tan vào làn nước.',
+      };
+    }
+    return {
+      speaker: '🌊 Hồ Sương Mây',
+      text: 'Làn nước trong vắt đọng lại từ sương mây tinh khiết. Thả tay cảm nhận hơi mát lành, bạn nghe rõ tiếng cá quẫy nhẹ dưới tán sen xanh.',
+    };
+  }
+  if (weather === 'foggy') {
+    return {
+      speaker: '🔭 Bờ Mây Ngắm Cảnh',
+      text: 'Biển mây trắng xóa dâng lên tận mép gỗ, chiếc chong chóng bốn màu vẫn quay đều giữa sương mù, chỉ hướng cho những cánh chim bay về.',
+    };
+  }
+  if (isEvening) {
+    return {
+      speaker: '🔭 Bờ Mây Ngắm Cảnh',
+      text: 'Ngồi trên băng ghế gỗ ngắm biển mây chuyển sắc tím hồng và các đảo bay lơ lửng phía xa — hít sâu một hơi, cả bầu trời đêm dường như rộng mở.',
+    };
+  }
+  return {
+    speaker: '🔭 Bờ Mây Ngắm Cảnh',
+    text: 'Gió tầng mây thổi xoay tít chiếc chong chóng nhỏ bên ghế gỗ. Từ đây có thể thu trọn vào tầm mắt những hòn đảo bay xa và biển mây bất tận.',
+  };
+}
 
 export const DAY1_BE_SUONG_DIALOGUE = [
   {

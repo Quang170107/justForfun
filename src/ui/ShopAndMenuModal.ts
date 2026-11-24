@@ -1,5 +1,5 @@
-import { PALETTE } from '../art/palette';
 import { pixelArt } from '../art/pixelArtGenerator';
+import { storybookArt } from '../art/storybookArt';
 import { getItemSellValue, ITEMS } from '../data/crops';
 import { GRANDMA_LETTER_LINES } from '../data/dialogues';
 import {
@@ -479,7 +479,7 @@ export class ShopAndMenuModal {
         <button id="btn-intro-skip" class="pixel-btn small">Bỏ qua</button>
       </div>
       <div class="story-stage-wrap">
-        <canvas id="intro-stage-canvas" width="360" height="144"></canvas>
+        <canvas id="intro-stage-canvas" width="640" height="300"></canvas>
         <div class="card-box" style="width:100%;font-size:16px;line-height:1.5;">
           <p id="intro-caption" style="margin:0;">${INTRO_SLIDES[0].caption}</p>
         </div>
@@ -497,83 +497,8 @@ export class ShopAndMenuModal {
 
     let tick = 0;
     const drawFrame = () => {
-      tick += 0.03;
-      ctx.imageSmoothingEnabled = false;
-      // Dawn cloud sky
-      ctx.fillStyle = PALETTE.skyLight;
-      ctx.fillRect(0, 0, 360, 144);
-      ctx.fillStyle = PALETTE.cloudPink;
-      ctx.fillRect(0, 56, 360, 32);
-
-      // Drifting upper clouds
-      ctx.fillStyle = PALETTE.cloudWhite;
-      for (let i = 0; i < 6; i++) {
-        const cx = Math.floor(((i * 75 - tick * 14) % 420 + 420) % 420) - 40;
-        const cy = 18 + (i % 3) * 14;
-        ctx.fillRect(cx, cy, 34, 10);
-        ctx.fillRect(cx + 6, cy - 5, 20, 6);
-      }
-
-      // Floating Tea Island appearing ahead (closer on slide 1)
-      const islandX = slideIdx === 0 ? 225 : 155;
-      const islandW = slideIdx === 0 ? 96 : 168;
-      const islandY = slideIdx === 0 ? 64 : 56;
-      // Cliff root & dirt
-      ctx.fillStyle = PALETTE.soilDark;
-      ctx.fillRect(islandX + 8, islandY + 12, islandW - 16, 18);
-      ctx.fillStyle = PALETTE.grassDark;
-      ctx.fillRect(islandX, islandY + 8, islandW, 6);
-      ctx.fillStyle = PALETTE.grassMid;
-      ctx.fillRect(islandX + 2, islandY + 4, islandW - 4, 6);
-      // Teahouse roof silhouette & lantern
-      const roofX = islandX + Math.floor(islandW * 0.45);
-      ctx.fillStyle = PALETTE.woodMid;
-      ctx.fillRect(roofX, islandY - 12, 34, 18);
-      ctx.fillStyle = PALETTE.roofMid;
-      ctx.fillRect(roofX - 4, islandY - 22, 42, 11);
-      ctx.fillStyle = PALETTE.amberGold;
-      ctx.fillRect(roofX + 12, islandY - 6, 8, 8);
-      // Sakura & pine trees
-      ctx.fillStyle = PALETTE.grassDark;
-      ctx.fillRect(islandX + 12, islandY - 14, 14, 20);
-      ctx.fillStyle = PALETTE.sakuraPink;
-      ctx.fillRect(islandX + 28, islandY - 12, 14, 12);
-
-      // Scrolling Cloud Sea waves in foreground
-      ctx.fillStyle = PALETTE.skyMid;
-      ctx.fillRect(0, 96, 360, 48);
-      ctx.fillStyle = PALETTE.cloudWhite;
-      for (let i = 0; i < 12; i++) {
-        const wx = Math.floor(((i * 38 + tick * 18) % 400 + 400) % 400) - 24;
-        const wy = 98 + (i % 3) * 14 + Math.round(Math.sin(tick * 2 + i) * 2);
-        ctx.fillRect(wx, wy, 28, 8);
-      }
-
-      // Cozy Cloud Boat gliding across sea
-      const boatX = slideIdx === 0 ? 64 + Math.round(Math.sin(tick * 1.4) * 10) : 112;
-      const boatY = 86 + Math.round(Math.sin(tick * 3.1) * 3);
-      ctx.fillStyle = PALETTE.outlineDark;
-      ctx.fillRect(boatX - 2, boatY + 4, 52, 12);
-      ctx.fillStyle = PALETTE.woodMid;
-      ctx.fillRect(boatX, boatY + 5, 48, 9);
-      ctx.fillStyle = PALETTE.woodBright;
-      ctx.fillRect(boatX + 4, boatY + 6, 40, 4);
-      // Mast & sail + warm bow lantern
-      ctx.fillStyle = PALETTE.woodDark;
-      ctx.fillRect(boatX + 22, boatY - 24, 3, 30);
-      ctx.fillStyle = PALETTE.creamLight;
-      ctx.fillRect(boatX + 10, boatY - 22, 12, 22);
-      ctx.fillRect(boatX + 25, boatY - 18, 13, 18);
-      ctx.fillStyle = PALETTE.coralRed;
-      ctx.fillRect(boatX + 42, boatY - 2, 5, 6);
-      ctx.fillStyle = PALETTE.amberGold;
-      ctx.fillRect(boatX + 43, boatY, 3, 3);
-      // Tiny passenger silhouette
-      ctx.fillStyle = PALETTE.navyDark;
-      ctx.fillRect(boatX + 14, boatY - 2, 5, 7);
-      ctx.fillStyle = PALETTE.skinBase;
-      ctx.fillRect(boatX + 14, boatY - 7, 5, 5);
-
+      tick += 0.025;
+      storybookArt.drawIntroCutsceneCanvas(ctx, canvas.width, canvas.height, slideIdx, tick);
       this.animRafId = requestAnimationFrame(drawFrame);
     };
     drawFrame();
@@ -584,10 +509,10 @@ export class ShopAndMenuModal {
     };
     skipBtn.addEventListener('click', finishIntro);
     nextBtn.addEventListener('click', () => {
-      if (slideIdx === 0) {
-        slideIdx = 1;
-        captionEl.textContent = INTRO_SLIDES[1].caption;
-        nextBtn.textContent = INTRO_SLIDES[1].buttonText;
+      if (slideIdx + 1 < INTRO_SLIDES.length) {
+        slideIdx += 1;
+        captionEl.textContent = INTRO_SLIDES[slideIdx].caption;
+        nextBtn.textContent = INTRO_SLIDES[slideIdx].buttonText;
       } else {
         finishIntro();
       }
@@ -622,7 +547,7 @@ export class ShopAndMenuModal {
         <h2>🏮 Lễ Hội Thả Đèn Mây — Ngày 24 Xuân</h2>
       </div>
       <div class="story-stage-wrap">
-        <canvas id="festival-stage-canvas" width="360" height="150"></canvas>
+        <canvas id="festival-stage-canvas" width="640" height="300"></canvas>
         <div class="card-box" style="width:100%;font-size:14px;line-height:1.45;">
           ${LANTERN_FESTIVAL_WISHES.map(
             (w) => `<div style="margin:3px 0;"><b>${w.name}:</b> ${w.wish}</div>`
@@ -636,58 +561,17 @@ export class ShopAndMenuModal {
 
     const canvas = modalBox.querySelector('#festival-stage-canvas') as HTMLCanvasElement;
     const ctx = canvas.getContext('2d')!;
-    const lanterns = Array.from({ length: 18 }, (_, idx) => ({
-      x: 20 + ((idx * 19) % 320),
-      y: 25 + (idx * 23) % 115,
-      speed: 12 + (idx % 4) * 5,
+    const lanterns = Array.from({ length: 22 }, (_, idx) => ({
+      x: 36 + ((idx * 37) % 568),
+      y: 35 + (idx * 29) % 225,
+      speed: 18 + (idx % 4) * 7,
       phase: idx * 0.7,
     }));
 
     let t = 0;
     const drawFestival = () => {
       t += 0.025;
-      ctx.imageSmoothingEnabled = false;
-      // Starlit twilight sky
-      ctx.fillStyle = '#252142';
-      ctx.fillRect(0, 0, 360, 150);
-      ctx.fillStyle = '#3d3369';
-      ctx.fillRect(0, 72, 360, 44);
-      ctx.fillStyle = '#53447c';
-      ctx.fillRect(0, 110, 360, 40);
-
-      // Pixel stars
-      ctx.fillStyle = PALETTE.creamLight;
-      for (let i = 0; i < 20; i++) {
-        const sx = (i * 53 + 17) % 350;
-        const sy = (i * 29 + 9) % 80;
-        if (Math.sin(t * 3 + i) > -0.4) {
-          ctx.fillRect(sx, sy, 2, 2);
-        }
-      }
-
-      // Drifting glowing sky lanterns
-      for (const l of lanterns) {
-        const ly = ((l.y - t * l.speed) % 135 + 135) % 135;
-        const lx = l.x + Math.round(Math.sin(t * 2 + l.phase) * 5);
-        ctx.fillStyle = PALETTE.amberWarm;
-        ctx.fillRect(lx - 1, ly - 1, 8, 10);
-        ctx.fillStyle = PALETTE.coralRed;
-        ctx.fillRect(lx, ly, 6, 8);
-        ctx.fillStyle = PALETTE.amberGold;
-        ctx.fillRect(lx + 1, ly + 2, 4, 5);
-        ctx.fillStyle = PALETTE.whiteWarm;
-        ctx.fillRect(lx + 2, ly + 4, 2, 2);
-      }
-
-      // Silhouetted Teahouse deck railing & gathering villagers
-      ctx.fillStyle = PALETTE.woodDark;
-      ctx.fillRect(0, 128, 360, 22);
-      for (const gx of [95, 130, 175, 220, 260]) {
-        ctx.fillStyle = PALETTE.outlineDark;
-        ctx.fillRect(gx, 114, 7, 15);
-        ctx.fillRect(gx + 1, 108, 5, 6);
-      }
-
+      storybookArt.drawLanternFestivalCanvas(ctx, canvas.width, canvas.height, lanterns, t);
       this.animRafId = requestAnimationFrame(drawFestival);
     };
     drawFestival();
@@ -729,7 +613,7 @@ export class ShopAndMenuModal {
             const h = stats.npcHearts[id] ?? 0;
             return `
               <div class="card-box" style="align-items:center;text-align:center;">
-                <img src="${pixelArt.getPortraitUrl(id, h >= 4 ? 'happy' : 'normal')}" style="width:48px;height:48px;border:2px solid #2b1d14;image-rendering:pixelated;" alt="${def.name}" />
+                <img src="${storybookArt.getPortraitUrl(id, h >= 4 ? 'happy' : 'normal')}" style="width:52px;height:52px;border:2px solid #2b1d14;border-radius:6px;" alt="${def.name}" />
                 <strong>${def.name}</strong>
                 <span style="color:#b8433a;font-size:13px;">${'♥'.repeat(h)}${'♡'.repeat(10 - h)} (${h}/10)</span>
               </div>

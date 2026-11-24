@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { PALETTE } from '../art/palette';
 import { pixelArt } from '../art/pixelArtGenerator';
+import { toonMaterials } from '../art/toonMaterials';
 import { rollRandomWeather, WEATHER_CONFIG } from '../data/weather';
 import { WeatherType } from '../data/types';
 
@@ -28,8 +29,9 @@ interface ScenicPuddle {
 }
 
 interface SkyBird {
-  sprite: THREE.Sprite;
-  mat: THREE.SpriteMaterial;
+  group: THREE.Group;
+  leftWing: THREE.Mesh;
+  rightWing: THREE.Mesh;
   x: number;
   y: number;
   z: number;
@@ -222,23 +224,30 @@ export class WeatherSystem {
   }
 
   private buildBirds(): void {
-    const tex0 = pixelArt.getTexture('prop_bird_0');
+    const bodyMat = toonMaterials.getSolidToon(PALETTE.whiteWarm);
+    const wingMat = toonMaterials.getSolidToon(PALETTE.navyLight);
+    const bodyGeo = new THREE.ConeGeometry(0.06, 0.24, 5);
+    bodyGeo.rotateZ(-Math.PI / 2);
+    const wingGeo = new THREE.BoxGeometry(0.12, 0.02, 0.24);
+
     for (let i = 0; i < 3; i++) {
-      const mat = new THREE.SpriteMaterial({
-        map: tex0,
-        transparent: true,
-        depthWrite: false,
-      });
-      const sprite = new THREE.Sprite(mat);
+      const g = new THREE.Group();
+      const body = new THREE.Mesh(bodyGeo, bodyMat);
+      const leftWing = new THREE.Mesh(wingGeo, wingMat);
+      leftWing.position.set(0, 0.02, -0.13);
+      const rightWing = new THREE.Mesh(wingGeo, wingMat);
+      rightWing.position.set(0, 0.02, 0.13);
+      g.add(body, leftWing, rightWing);
+
       const x = -12 + i * 9;
       const y = 4.6 + (i % 2) * 0.9;
       const z = -4.5 + i * 3.4;
-      sprite.position.set(x, y, z);
-      sprite.scale.set(0.75, 0.5, 1);
-      this.group.add(sprite);
+      g.position.set(x, y, z);
+      this.group.add(g);
       this.birds.push({
-        sprite,
-        mat,
+        group: g,
+        leftWing,
+        rightWing,
         x,
         y,
         z,
@@ -342,7 +351,7 @@ export class WeatherSystem {
       if (bf.mesh.visible) count += 1;
     }
     for (const b of this.birds) {
-      if (b.sprite.visible) count += 1;
+      if (b.group.visible) count += 1;
     }
     count += this.skyLanterns.length;
     return count;
@@ -463,12 +472,10 @@ export class WeatherSystem {
       }
     }
 
-    // Chim bay ngang bầu trời ban ngày tạnh ráo
+    // Chim 3D vỗ cánh bay ngang bầu trời ban ngày tạnh ráo
     const showBirds = !isRain && nightFactor < 0.45;
-    const flapFrame = Math.floor(elapsed * 4.5) % 2 === 0 ? 'prop_bird_0' : 'prop_bird_1';
-    const birdTex = pixelArt.getTexture(flapFrame);
     for (const b of this.birds) {
-      b.sprite.visible = showBirds;
+      b.group.visible = showBirds;
       if (!showBirds) continue;
       b.x += b.vx * dt;
       b.z += b.vz * dt;
@@ -477,11 +484,10 @@ export class WeatherSystem {
         b.z = -5 + Math.random() * 10;
       }
       if (b.z > 8) b.z = -7;
-      b.sprite.position.set(b.x, b.y + Math.sin(elapsed * 2.2 + b.phase) * 0.25, b.z);
-      if (b.mat.map !== birdTex) {
-        b.mat.map = birdTex;
-        b.mat.needsUpdate = true;
-      }
+      b.group.position.set(b.x, b.y + Math.sin(elapsed * 2.2 + b.phase) * 0.25, b.z);
+      const flap = Math.sin(elapsed * 8.5 + b.phase) * 0.55;
+      b.leftWing.rotation.x = flap;
+      b.rightWing.rotation.x = -flap;
     }
 
     // Burst hạt khi cuốc / tưới / thu hoạch / mốc tim

@@ -1,4 +1,4 @@
-import { pixelArt } from '../art/pixelArtGenerator';
+import { storybookArt } from '../art/storybookArt';
 import { AudioSystem } from '../core/AudioSystem';
 import { NpcId, PortraitExpression, PortraitId } from '../data/types';
 
@@ -104,7 +104,7 @@ export class DialogueBox {
     const portraitTarget = next.portraitId ?? next.npcId;
     if (portraitTarget) {
       this.portraitImg.style.display = 'block';
-      this.portraitImg.src = pixelArt.getPortraitUrl(portraitTarget, next.expression ?? 'normal');
+      this.portraitImg.src = storybookArt.getPortraitUrl(portraitTarget, next.expression ?? 'normal');
       if (next.hearts !== undefined) {
         this.heartsEl.textContent = `${'♥'.repeat(next.hearts)}${'♡'.repeat(Math.max(0, 10 - next.hearts))}`;
       } else {
